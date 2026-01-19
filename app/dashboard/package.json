@@ -1,0 +1,8 @@
+{
+  "name": "bs-grid-dashboard",
+  "version": "1.0.0",
+  "description": "BS GRID Real-time Dashboard - Berlin Power Grid Monitoring",
+  "scripts": {
+    "build": "echo 'No build required for static HTML5 app'"
+  }
+}

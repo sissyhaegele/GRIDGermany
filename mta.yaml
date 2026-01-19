@@ -1,0 +1,116 @@
+_schema-version: "3.2"
+ID: grid-germany
+version: 1.0.0
+description: "GRIDGermany - Echtzeit Netzüberwachung | Showcase: Berliner Stadtwerke (BS)"
+
+parameters:
+  enable-parallel-deployments: true
+
+modules:
+  # ============================================
+  # Central Application Router
+  # ============================================
+  - name: grid-germany-approuter
+    type: approuter.nodejs
+    path: approuter
+    parameters:
+      disk-quota: 256M
+      memory: 256M
+    requires:
+      - name: grid-germany-html5-repo-runtime
+      - name: grid-germany-uaa
+      - name: grid-germany-destination
+    properties:
+      CORS:
+        - uriPattern: .*
+          allowedOrigin:
+            - host: "*.messaging.solace.cloud"
+              protocol: "https"
+          allowedMethods:
+            - GET
+            - POST
+            - PUT
+            - DELETE
+            - OPTIONS
+          allowedHeaders:
+            - Authorization
+            - Content-Type
+          exposeHeaders:
+            - Content-Length
+
+  # ============================================
+  # Dashboard App (SMF/WebSocket)
+  # ============================================
+  - name: grid-germany-dashboard
+    type: html5
+    path: app/dashboard
+    build-parameters:
+      build-result: webapp
+      builder: custom
+      commands:
+        - npm install
+    requires:
+      - name: grid-germany-html5-repo-host
+
+  # ============================================
+  # Fleet Control App (MQTT/WebSocket)
+  # ============================================
+  - name: grid-germany-fleet-control
+    type: html5
+    path: app/fleet-control
+    build-parameters:
+      build-result: webapp
+      builder: custom
+      commands:
+        - npm install
+    requires:
+      - name: grid-germany-html5-repo-host
+
+resources:
+  # ============================================
+  # HTML5 Application Repository (Host)
+  # ============================================
+  - name: grid-germany-html5-repo-host
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: html5-apps-repo
+      service-plan: app-host
+
+  # ============================================
+  # HTML5 Application Repository (Runtime)
+  # ============================================
+  - name: grid-germany-html5-repo-runtime
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: html5-apps-repo
+      service-plan: app-runtime
+
+  # ============================================
+  # Authorization & Trust (XSUAA)
+  # ============================================
+  - name: grid-germany-uaa
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: xsuaa
+      service-plan: application
+      path: xs-security.json
+
+  # ============================================
+  # Destination Service (für AEM Connectivity)
+  # ============================================
+  - name: grid-germany-destination
+    type: org.cloudfoundry.managed-service
+    parameters:
+      service: destination
+      service-plan: lite
+      config:
+        init_data:
+          instance:
+            existing_destinations_policy: update
+            destinations:
+              - Name: GRID_GERMANY_AEM_SOLACE
+                Type: HTTP
+                URL: https://mr-connection-gu0w0pjgchg.messaging.solace.cloud
+                Authentication: NoAuthentication
+                ProxyType: Internet
+                Description: "Solace AEM Broker für GRIDGermany - BS Showcase"

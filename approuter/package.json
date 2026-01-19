@@ -1,0 +1,11 @@
+{
+  "name": "bs-grid-approuter",
+  "version": "1.0.0",
+  "description": "App Router for BS GRID POC",
+  "scripts": {
+    "start": "node node_modules/@sap/approuter/approuter.js"
+  },
+  "dependencies": {
+    "@sap/approuter": "^14.0.0"
+  }
+}

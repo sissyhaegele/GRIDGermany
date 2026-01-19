@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GRIDGermany - Fleet Control</title>
+    <script src="https://cdn.jsdelivr.net/npm/mqtt@5.3.4/dist/mqtt.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: '72', 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .header h1 {
+            font-size: 28px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .header h1::before {
+            content: '🎛️';
+            font-size: 32px;
+        }
+        
+        /* Connection Panel */
+        .connection-panel {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .connection-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        
+        .connection-header h2 {
+            font-size: 16px;
+            font-weight: 500;
+        }
+        
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 13px;
+        }
+        
+        .status-badge.disconnected {
+            background: rgba(244, 67, 54, 0.2);
+            color: #f44336;
+        }
+        
+        .status-badge.connected {
+            background: rgba(76, 175, 80, 0.2);
+            color: #4caf50;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+        
+        .btn {
+            padding: 10px 24px;
+            border-radius: 8px;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #0a6ed1 0%, #0854a0 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(10, 110, 209, 0.4);
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
+            color: white;
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, #4caf50 0%, #388e3c 100%);
+            color: white;
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        /* Control Panel */
+        .control-panel {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .control-panel h2 {
+            font-size: 16px;
+            font-weight: 500;
+            margin-bottom: 20px;
+        }
+        
+        .control-row {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .control-group label {
+            font-size: 13px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+        
+        .sensor-count-input {
+            width: 80px;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            font-size: 14px;
+            text-align: center;
+        }
+        
+        .preset-btns {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .preset-btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.05);
+            color: white;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+        
+        .preset-btn:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+        
+        .preset-btn.active {
+            background: rgba(10, 110, 209, 0.3);
+            border-color: #0a6ed1;
+        }
+        
+        /* Sensor Grid */
+        .sensor-panel {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 20px;
+        }
+        
+        .sensor-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .sensor-panel-header h2 {
+            font-size: 16px;
+            font-weight: 500;
+        }
+        
+        .sensor-stats {
+            display: flex;
+            gap: 20px;
+            font-size: 13px;
+        }
+        
+        .sensor-stats span {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .sensor-stats .running { color: #4caf50; }
+        .sensor-stats .stopped { color: #9e9e9e; }
+        .sensor-stats .waiting { color: #ff9800; }
+        
+        .sensor-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            gap: 10px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .sensor-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 12px;
+            text-align: center;
+            transition: all 0.2s;
+        }
+        
+        .sensor-card.running {
+            border-color: rgba(76, 175, 80, 0.5);
+            background: rgba(76, 175, 80, 0.1);
+        }
+        
+        .sensor-card.waiting {
+            border-color: rgba(255, 152, 0, 0.5);
+            background: rgba(255, 152, 0, 0.1);
+        }
+        
+        .sensor-card .sensor-id {
+            font-size: 11px;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+        
+        .sensor-card .sensor-status {
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.5);
+        }
+        
+        .sensor-card .status-icon {
+            font-size: 20px;
+            margin-bottom: 6px;
+        }
+        
+        /* Log Panel */
+        .log-panel {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        
+        .log-panel h2 {
+            font-size: 16px;
+            font-weight: 500;
+            margin-bottom: 15px;
+        }
+        
+        .log-container {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            padding: 15px;
+            height: 200px;
+            overflow-y: auto;
+            font-family: 'Fira Code', 'Consolas', monospace;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+        
+        .log-entry {
+            margin-bottom: 4px;
+        }
+        
+        .log-entry .timestamp {
+            color: rgba(255, 255, 255, 0.4);
+        }
+        
+        .log-entry.info { color: #64b5f6; }
+        .log-entry.success { color: #81c784; }
+        .log-entry.warning { color: #ffb74d; }
+        .log-entry.error { color: #e57373; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>GRIDGermany - Fleet Control</h1>
+        </div>
+        
+        <!-- Connection Panel -->
+        <div class="connection-panel">
+            <div class="connection-header">
+                <h2>🔌 Broker Verbindung</h2>
+                <div class="status-badge disconnected" id="connectionStatus">
+                    <div class="status-dot"></div>
+                    <span>Nicht verbunden</span>
+                </div>
+            </div>
+            <button class="btn btn-primary" id="connectBtn" onclick="toggleConnection()">
+                Mit Solace verbinden
+            </button>
+        </div>
+        
+        <!-- Control Panel -->
+        <div class="control-panel">
+            <h2>⚙️ Sensor Steuerung</h2>
+            <div class="control-row">
+                <div class="control-group">
+                    <label>Anzahl Sensoren:</label>
+                    <input type="number" class="sensor-count-input" id="sensorCount" value="10" min="1" max="100">
+                </div>
+                
+                <div class="preset-btns">
+                    <button class="preset-btn" onclick="setPreset(1)">1</button>
+                    <button class="preset-btn" onclick="setPreset(3)">3</button>
+                    <button class="preset-btn" onclick="setPreset(7)">7</button>
+                    <button class="preset-btn active" onclick="setPreset(10)">10</button>
+                    <button class="preset-btn" onclick="setPreset(25)">25</button>
+                    <button class="preset-btn" onclick="setPreset(50)">50</button>
+                    <button class="preset-btn" onclick="setPreset(100)">100</button>
+                </div>
+                
+                <button class="btn btn-success" id="startBtn" onclick="startSensors()" disabled>
+                    ▶️ Ausgewählte starten
+                </button>
+                
+                <button class="btn btn-danger" id="stopBtn" onclick="stopAllSensors()" disabled>
+                    ⏹️ Alle stoppen
+                </button>
+            </div>
+        </div>
+        
+        <!-- Sensor Grid -->
+        <div class="sensor-panel">
+            <div class="sensor-panel-header">
+                <h2>📡 Sensor Fleet</h2>
+                <div class="sensor-stats">
+                    <span class="running">● <span id="runningCount">0</span> Running</span>
+                    <span class="waiting">● <span id="waitingCount">0</span> Waiting</span>
+                    <span class="stopped">● <span id="stoppedCount">0</span> Stopped</span>
+                </div>
+            </div>
+            <div class="sensor-grid" id="sensorGrid"></div>
+        </div>
+        
+        <!-- Log Panel -->
+        <div class="log-panel">
+            <h2>📋 Activity Log</h2>
+            <div class="log-container" id="logContainer"></div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================
+        // Configuration
+        // ============================================
+        const CONFIG = {
+            mqtt: {
+                url: 'wss://mr-connection-gu0w0pjgchg.messaging.solace.cloud:8443/mqtt',
+                username: 'solace-cloud-client',
+                password: 'iejmgp94muv7m5ahsfe9b50dvb'
+            },
+            topics: {
+                commandPrefix: 'control/sensor/',
+                statusSubscription: 'control/sensor/+/status'
+            }
+        };
+
+        // Sensor definitions with round-robin distribution
+        const SENSOR_POOL = generateSensorPool();
+
+        // ============================================
+        // State
+        // ============================================
+        let mqttClient = null;
+        let isConnected = false;
+        let sensorStates = new Map();
+
+        // ============================================
+        // Generate Sensor Pool (Round-Robin)
+        // ============================================
+        function generateSensorPool() {
+            const districts = [
+                { code: 'MIT', name: 'Mitte', count: 15 },
+                { code: 'KRZ', name: 'Kreuzberg', count: 12 },
+                { code: 'CHA', name: 'Charlottenburg', count: 12 },
+                { code: 'PRZ', name: 'Prenzlauer Berg', count: 12 },
+                { code: 'FRH', name: 'Friedrichshain', count: 10 },
+                { code: 'NEU', name: 'Neukölln', count: 10 },
+                { code: 'TMP', name: 'Tempelhof', count: 8 },
+                { code: 'SCH', name: 'Schöneberg', count: 8 },
+                { code: 'WED', name: 'Wedding', count: 7 },
+                { code: 'SPA', name: 'Spandau', count: 6 }
+            ];
+            
+            // Create all sensors per district
+            const districtSensors = districts.map(d => {
+                return Array.from({ length: d.count }, (_, i) => ({
+                    id: `TRF-${d.code}-${String(i + 1).padStart(3, '0')}`,
+                    district: d.name
+                }));
+            });
+            
+            // Round-robin interleave
+            const result = [];
+            let maxLen = Math.max(...districtSensors.map(d => d.length));
+            
+            for (let i = 0; i < maxLen; i++) {
+                for (let j = 0; j < districtSensors.length; j++) {
+                    if (districtSensors[j][i]) {
+                        result.push(districtSensors[j][i]);
+                    }
+                }
+            }
+            
+            return result;
+        }
+
+        // ============================================
+        // Connection
+        // ============================================
+        function toggleConnection() {
+            if (isConnected) {
+                disconnect();
+            } else {
+                connect();
+            }
+        }
+
+        function connect() {
+            log('Verbinde mit Solace Broker...', 'info');
+            
+            mqttClient = mqtt.connect(CONFIG.mqtt.url, {
+                username: CONFIG.mqtt.username,
+                password: CONFIG.mqtt.password,
+                clientId: `fleet-control-${Date.now()}`,
+                clean: true,
+                reconnectPeriod: 5000
+            });
+
+            mqttClient.on('connect', () => {
+                isConnected = true;
+                updateConnectionUI(true);
+                log('✅ Verbindung hergestellt', 'success');
+                
+                // Subscribe to sensor status updates
+                mqttClient.subscribe(CONFIG.topics.statusSubscription, (err) => {
+                    if (!err) {
+                        log(`📡 Subscribed: ${CONFIG.topics.statusSubscription}`, 'info');
+                    }
+                });
+                
+                // Initialize sensor grid
+                initializeSensorGrid();
+            });
+
+            mqttClient.on('error', (err) => {
+                log(`❌ Verbindungsfehler: ${err.message}`, 'error');
+            });
+
+            mqttClient.on('close', () => {
+                isConnected = false;
+                updateConnectionUI(false);
+                log('🔌 Verbindung getrennt', 'warning');
+            });
+
+            mqttClient.on('message', (topic, message) => {
+                handleStatusMessage(topic, message);
+            });
+        }
+
+        function disconnect() {
+            if (mqttClient) {
+                mqttClient.end();
+                log('Verbindung wird getrennt...', 'info');
+            }
+        }
+
+        // ============================================
+        // Sensor Management
+        // ============================================
+        function initializeSensorGrid() {
+            const grid = document.getElementById('sensorGrid');
+            grid.innerHTML = '';
+            sensorStates.clear();
+            
+            SENSOR_POOL.forEach(sensor => {
+                sensorStates.set(sensor.id, { status: 'stopped', district: sensor.district });
+                
+                const card = document.createElement('div');
+                card.id = `card-${sensor.id}`;
+                card.className = 'sensor-card';
+                card.innerHTML = `
+                    <div class="status-icon">⬛</div>
+                    <div class="sensor-id">${sensor.id}</div>
+                    <div class="sensor-status">${sensor.district}</div>
+                `;
+                grid.appendChild(card);
+            });
+            
+            updateSensorStats();
+        }
+
+        function setPreset(count) {
+            document.getElementById('sensorCount').value = count;
+            
+            // Update active button
+            document.querySelectorAll('.preset-btn').forEach(btn => {
+                btn.classList.toggle('active', parseInt(btn.textContent) === count);
+            });
+        }
+
+        function startSensors() {
+            const count = parseInt(document.getElementById('sensorCount').value);
+            const sensorsToStart = SENSOR_POOL.slice(0, count);
+            
+            log(`🚀 Starte ${count} Sensoren...`, 'info');
+            
+            sensorsToStart.forEach(sensor => {
+                const command = {
+                    command: 'start',
+                    requestId: `req-${Date.now()}`
+                };
+                
+                const topic = `${CONFIG.topics.commandPrefix}${sensor.id}/command`;
+                mqttClient.publish(topic, JSON.stringify(command));
+                
+                // Update UI to waiting state
+                updateSensorCard(sensor.id, 'waiting');
+            });
+        }
+
+        function stopAllSensors() {
+            log('⏹️ Stoppe alle Sensoren...', 'warning');
+            
+            sensorStates.forEach((state, sensorId) => {
+                if (state.status === 'running' || state.status === 'waiting') {
+                    const command = {
+                        command: 'stop',
+                        requestId: `req-${Date.now()}`
+                    };
+                    
+                    const topic = `${CONFIG.topics.commandPrefix}${sensorId}/command`;
+                    mqttClient.publish(topic, JSON.stringify(command));
+                    
+                    updateSensorCard(sensorId, 'stopped');
+                }
+            });
+        }
+
+        function handleStatusMessage(topic, message) {
+            try {
+                const payload = JSON.parse(message.toString());
+                const sensorId = payload.sensorId;
+                const status = payload.status;
+                
+                updateSensorCard(sensorId, status);
+                log(`📨 ${sensorId}: ${status}`, status === 'running' ? 'success' : 'info');
+            } catch (e) {
+                console.error('Parse error:', e);
+            }
+        }
+
+        function updateSensorCard(sensorId, status) {
+            const state = sensorStates.get(sensorId);
+            if (state) {
+                state.status = status;
+            }
+            
+            const card = document.getElementById(`card-${sensorId}`);
+            if (card) {
+                card.className = `sensor-card ${status}`;
+                
+                let icon = '⬛';
+                if (status === 'running') icon = '🟢';
+                else if (status === 'waiting') icon = '🟡';
+                
+                card.querySelector('.status-icon').textContent = icon;
+            }
+            
+            updateSensorStats();
+        }
+
+        function updateSensorStats() {
+            let running = 0, waiting = 0, stopped = 0;
+            
+            sensorStates.forEach(state => {
+                if (state.status === 'running') running++;
+                else if (state.status === 'waiting') waiting++;
+                else stopped++;
+            });
+            
+            document.getElementById('runningCount').textContent = running;
+            document.getElementById('waitingCount').textContent = waiting;
+            document.getElementById('stoppedCount').textContent = stopped;
+        }
+
+        // ============================================
+        // UI Helpers
+        // ============================================
+        function updateConnectionUI(connected) {
+            const status = document.getElementById('connectionStatus');
+            const connectBtn = document.getElementById('connectBtn');
+            const startBtn = document.getElementById('startBtn');
+            const stopBtn = document.getElementById('stopBtn');
+            
+            if (connected) {
+                status.className = 'status-badge connected';
+                status.innerHTML = '<div class="status-dot"></div><span>Verbunden</span>';
+                connectBtn.textContent = 'Trennen';
+                connectBtn.classList.remove('btn-primary');
+                connectBtn.classList.add('btn-danger');
+                startBtn.disabled = false;
+                stopBtn.disabled = false;
+            } else {
+                status.className = 'status-badge disconnected';
+                status.innerHTML = '<div class="status-dot"></div><span>Nicht verbunden</span>';
+                connectBtn.textContent = 'Mit Solace verbinden';
+                connectBtn.classList.remove('btn-danger');
+                connectBtn.classList.add('btn-primary');
+                startBtn.disabled = true;
+                stopBtn.disabled = true;
+            }
+        }
+
+        function log(message, type = 'info') {
+            const container = document.getElementById('logContainer');
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            
+            const timestamp = new Date().toLocaleTimeString('de-DE');
+            entry.innerHTML = `<span class="timestamp">[${timestamp}]</span> ${message}`;
+            
+            container.insertBefore(entry, container.firstChild);
+            
+            // Keep only last 50 entries
+            while (container.children.length > 50) {
+                container.removeChild(container.lastChild);
+            }
+        }
+
+        // ============================================
+        // Initialize
+        // ============================================
+        document.addEventListener('DOMContentLoaded', () => {
+            log('Fleet Control bereit', 'info');
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,31 @@
+{
+  "_version": "1.32.0",
+  "sap.app": {
+    "id": "com.sap.bsgrid.dashboard",
+    "type": "application",
+    "title": "{{appTitle}}",
+    "description": "{{appDescription}}",
+    "applicationVersion": {
+      "version": "1.0.0"
+    },
+    "dataSources": {}
+  },
+  "sap.ui5": {
+    "flexEnabled": false,
+    "rootView": {
+      "viewName": "index",
+      "type": "HTML"
+    }
+  },
+  "sap.cloud": {
+    "public": true,
+    "service": "grid-germany"
+  },
+  "sap.fiori": {
+    "registrationIds": [],
+    "archeType": "analytical"
+  },
+  "sap.platform.cf": {
+    "oAuthScopes": ["$XSAPPNAME.viewer"]
+  }
+}

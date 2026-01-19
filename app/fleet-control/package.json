@@ -1,0 +1,8 @@
+{
+  "name": "bs-grid-fleet-control",
+  "version": "1.0.0",
+  "description": "BS GRID Fleet Control - Sensor Management",
+  "scripts": {
+    "build": "echo 'No build required for static HTML5 app'"
+  }
+}

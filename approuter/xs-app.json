@@ -1,0 +1,25 @@
+{
+  "welcomeFile": "/dashboard/index.html",
+  "authenticationMethod": "route",
+  "routes": [
+    {
+      "source": "^/dashboard/(.*)$",
+      "target": "$1",
+      "service": "html5-apps-repo-rt",
+      "authenticationType": "xsuaa",
+      "scope": "$XSAPPNAME.viewer",
+      "cacheControl": "no-cache, no-store, must-revalidate"
+    },
+    {
+      "source": "^/fleet-control/(.*)$",
+      "target": "$1",
+      "service": "html5-apps-repo-rt",
+      "authenticationType": "xsuaa",
+      "scope": "$XSAPPNAME.operator",
+      "cacheControl": "no-cache, no-store, must-revalidate"
+    }
+  ],
+  "websockets": {
+    "enabled": true
+  }
+}

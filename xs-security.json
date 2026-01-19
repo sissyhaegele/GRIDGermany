@@ -1,0 +1,53 @@
+{
+  "xsappname": "grid-germany",
+  "tenant-mode": "dedicated",
+  "description": "GRIDGermany - Echtzeit Netzüberwachung | Showcase: Berliner Stadtwerke",
+  "scopes": [
+    {
+      "name": "$XSAPPNAME.viewer",
+      "description": "View grid data and dashboards"
+    },
+    {
+      "name": "$XSAPPNAME.operator",
+      "description": "Control sensors and manage fleet"
+    },
+    {
+      "name": "$XSAPPNAME.admin",
+      "description": "Full administrative access"
+    }
+  ],
+  "role-templates": [
+    {
+      "name": "GridViewer",
+      "description": "View grid monitoring data",
+      "scope-references": ["$XSAPPNAME.viewer"]
+    },
+    {
+      "name": "GridOperator",
+      "description": "Operate and control sensors",
+      "scope-references": ["$XSAPPNAME.viewer", "$XSAPPNAME.operator"]
+    },
+    {
+      "name": "GridAdmin",
+      "description": "Full administrative access",
+      "scope-references": ["$XSAPPNAME.viewer", "$XSAPPNAME.operator", "$XSAPPNAME.admin"]
+    }
+  ],
+  "role-collections": [
+    {
+      "name": "GRIDGermany_Viewer",
+      "description": "GRIDGermany - Dashboard Viewer",
+      "role-template-references": ["$XSAPPNAME.GridViewer"]
+    },
+    {
+      "name": "GRIDGermany_Operator",
+      "description": "GRIDGermany - Fleet Operator",
+      "role-template-references": ["$XSAPPNAME.GridOperator"]
+    },
+    {
+      "name": "GRIDGermany_Admin",
+      "description": "GRIDGermany - Administrator",
+      "role-template-references": ["$XSAPPNAME.GridAdmin"]
+    }
+  ]
+}

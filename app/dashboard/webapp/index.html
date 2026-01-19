@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GRIDGermany - Berliner Stadtwerke Showcase</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="solclient-full.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: '72', 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
+            min-height: 100vh;
+        }
+        
+        /* Header */
+        .header {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .header h1::before {
+            content: '⚡';
+            font-size: 28px;
+        }
+        
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 16px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+        }
+        
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #f44336;
+            transition: background 0.3s;
+        }
+        
+        .status-dot.connected {
+            background: #4caf50;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        /* Main Layout */
+        .main-container {
+            display: grid;
+            grid-template-columns: 1fr 400px;
+            gap: 20px;
+            padding: 20px;
+            height: calc(100vh - 70px);
+        }
+        
+        /* Left Panel */
+        .left-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        /* Stats Bar */
+        .stats-bar {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 15px;
+        }
+        
+        .stat-card {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 15px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+        }
+        
+        .stat-card .label {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.7);
+            margin-bottom: 5px;
+        }
+        
+        .stat-card .value {
+            font-size: 24px;
+            font-weight: 600;
+        }
+        
+        .stat-card.anomaly .value {
+            color: #f44336;
+        }
+        
+        /* Map Container */
+        .map-container {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            overflow: hidden;
+            min-height: 400px;
+        }
+        
+        #map {
+            width: 100%;
+            height: 100%;
+        }
+        
+        /* Right Panel */
+        .right-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        /* Sensor Grid */
+        .sensor-grid-container {
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 15px;
+            max-height: 50%;
+            overflow-y: auto;
+        }
+        
+        .sensor-grid-container h3 {
+            margin-bottom: 15px;
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+        
+        .sensor-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+        }
+        
+        .sensor-tile {
+            background: rgba(76, 175, 80, 0.2);
+            border: 1px solid rgba(76, 175, 80, 0.5);
+            border-radius: 8px;
+            padding: 10px;
+            transition: all 0.3s;
+        }
+        
+        .sensor-tile.anomaly {
+            background: rgba(244, 67, 54, 0.3);
+            border-color: #f44336;
+            animation: anomaly-pulse 0.5s ease-in-out infinite alternate;
+        }
+        
+        @keyframes anomaly-pulse {
+            from { box-shadow: 0 0 5px rgba(244, 67, 54, 0.5); }
+            to { box-shadow: 0 0 20px rgba(244, 67, 54, 0.8); }
+        }
+        
+        .sensor-tile .sensor-id {
+            font-size: 11px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: rgba(255, 255, 255, 0.9);
+        }
+        
+        .sensor-tile .metrics {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4px;
+            font-size: 10px;
+        }
+        
+        .sensor-tile .metric {
+            display: flex;
+            justify-content: space-between;
+        }
+        
+        .sensor-tile .metric .label {
+            color: rgba(255, 255, 255, 0.5);
+        }
+        
+        /* Event Stream */
+        .event-stream-container {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+        
+        .event-stream-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .event-stream-header h3 {
+            font-size: 14px;
+            color: rgba(255, 255, 255, 0.7);
+        }
+        
+        .event-counter {
+            font-size: 12px;
+            color: #4caf50;
+        }
+        
+        .event-stream {
+            flex: 1;
+            overflow-y: auto;
+            font-family: 'Fira Code', 'Consolas', monospace;
+            font-size: 11px;
+            line-height: 1.6;
+        }
+        
+        .event-entry {
+            padding: 4px 8px;
+            border-radius: 4px;
+            margin-bottom: 2px;
+        }
+        
+        .event-entry.anomaly {
+            background: rgba(244, 67, 54, 0.2);
+            color: #ff8a80;
+        }
+        
+        .event-entry .timestamp {
+            color: rgba(255, 255, 255, 0.4);
+        }
+        
+        .event-entry .sensor {
+            color: #64b5f6;
+        }
+        
+        /* Connect Button */
+        .connect-btn {
+            background: linear-gradient(135deg, #0a6ed1 0%, #0854a0 100%);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .connect-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(10, 110, 209, 0.4);
+        }
+        
+        .connect-btn:disabled {
+            background: #666;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        /* Leaflet Customization */
+        .leaflet-popup-content-wrapper {
+            background: rgba(26, 26, 46, 0.95);
+            color: #fff;
+            border-radius: 8px;
+        }
+        
+        .leaflet-popup-tip {
+            background: rgba(26, 26, 46, 0.95);
+        }
+        
+        /* Custom Markers */
+        .sensor-marker {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            border: 2px solid white;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+        
+        .sensor-marker.normal {
+            background: #4caf50;
+        }
+        
+        .sensor-marker.anomaly {
+            background: #f44336;
+            animation: marker-pulse 0.5s ease-in-out infinite alternate;
+        }
+        
+        @keyframes marker-pulse {
+            from { transform: scale(1); }
+            to { transform: scale(1.3); }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>GRIDGermany <span style="font-weight: 300; font-size: 18px; opacity: 0.7;">| Showcase: Berliner Stadtwerke</span></h1>
+        <div class="connection-status">
+            <div class="status-dot" id="statusDot"></div>
+            <span id="statusText">Nicht verbunden</span>
+            <button class="connect-btn" id="connectBtn" onclick="toggleConnection()">Verbinden</button>
+        </div>
+    </div>
+    
+    <div class="main-container">
+        <div class="left-panel">
+            <div class="stats-bar">
+                <div class="stat-card">
+                    <div class="label">Ø Spannung</div>
+                    <div class="value" id="avgVoltage">-- V</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Ø Frequenz</div>
+                    <div class="value" id="avgFrequency">-- Hz</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Ø Last</div>
+                    <div class="value" id="avgLoad">-- %</div>
+                </div>
+                <div class="stat-card">
+                    <div class="label">Events/Sek</div>
+                    <div class="value" id="eventsPerSec">0</div>
+                </div>
+                <div class="stat-card anomaly">
+                    <div class="label">Anomalien</div>
+                    <div class="value" id="anomalyCount">0</div>
+                </div>
+            </div>
+            
+            <div class="map-container">
+                <div id="map"></div>
+            </div>
+        </div>
+        
+        <div class="right-panel">
+            <div class="sensor-grid-container">
+                <h3>🔌 Aktive Sensoren</h3>
+                <div class="sensor-grid" id="sensorGrid"></div>
+            </div>
+            
+            <div class="event-stream-container">
+                <div class="event-stream-header">
+                    <h3>📡 Live Event Stream</h3>
+                    <span class="event-counter" id="eventCounter">0 Events</span>
+                </div>
+                <div class="event-stream" id="eventStream"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============================================
+        // Configuration
+        // ============================================
+        const CONFIG = {
+            solace: {
+                url: 'wss://mr-connection-gu0w0pjgchg.messaging.solace.cloud:443',
+                vpn: 'germangrid_berlin',
+                username: 'solace-cloud-client',
+                password: 'iejmgp94muv7m5ahsfe9b50dvb'
+            },
+            topics: {
+                sensorData: 'bs/*/mv/transformer/powerline/statusUpdated/v1/*'
+            }
+        };
+
+        // ============================================
+        // State
+        // ============================================
+        let session = null;
+        let isConnected = false;
+        let sensors = new Map();
+        let markers = new Map();
+        let eventCount = 0;
+        let eventsThisSecond = 0;
+        let map = null;
+
+        // Berlin district coordinates
+        const DISTRICT_COORDS = {
+            'mitte': { lat: 52.5200, lon: 13.4050 },
+            'kreuzberg': { lat: 52.4990, lon: 13.4030 },
+            'charlottenburg': { lat: 52.5160, lon: 13.3040 },
+            'prenzlauer berg': { lat: 52.5380, lon: 13.4240 },
+            'friedrichshain': { lat: 52.5150, lon: 13.4540 },
+            'neukoelln': { lat: 52.4810, lon: 13.4350 },
+            'neukölln': { lat: 52.4810, lon: 13.4350 },
+            'tempelhof': { lat: 52.4700, lon: 13.3850 },
+            'schoeneberg': { lat: 52.4840, lon: 13.3530 },
+            'schöneberg': { lat: 52.4840, lon: 13.3530 },
+            'wedding': { lat: 52.5510, lon: 13.3590 },
+            'spandau': { lat: 52.5350, lon: 13.2010 }
+        };
+
+        // ============================================
+        // Initialize Map
+        // ============================================
+        function initMap() {
+            map = L.map('map').setView([52.52, 13.405], 11);
+            
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '© OpenStreetMap © CARTO',
+                maxZoom: 19
+            }).addTo(map);
+        }
+
+        // ============================================
+        // Solace Connection
+        // ============================================
+        function toggleConnection() {
+            if (isConnected) {
+                disconnect();
+            } else {
+                connect();
+            }
+        }
+
+        function connect() {
+            const factoryProps = new solace.SolclientFactoryProperties();
+            factoryProps.profile = solace.SolclientFactoryProfiles.version10;
+            solace.SolclientFactory.init(factoryProps);
+
+            try {
+                session = solace.SolclientFactory.createSession({
+                    url: CONFIG.solace.url,
+                    vpnName: CONFIG.solace.vpn,
+                    userName: CONFIG.solace.username,
+                    password: CONFIG.solace.password,
+                    connectRetries: 3,
+                    reconnectRetries: 3
+                });
+
+                session.on(solace.SessionEventCode.UP_NOTICE, () => {
+                    console.log('✅ Connected to Solace');
+                    isConnected = true;
+                    updateConnectionUI(true);
+                    subscribe();
+                });
+
+                session.on(solace.SessionEventCode.CONNECT_FAILED_ERROR, (event) => {
+                    console.error('❌ Connection failed:', event.infoStr);
+                    updateConnectionUI(false);
+                });
+
+                session.on(solace.SessionEventCode.DISCONNECTED, () => {
+                    console.log('🔌 Disconnected');
+                    isConnected = false;
+                    updateConnectionUI(false);
+                });
+
+                session.on(solace.SessionEventCode.MESSAGE, handleMessage);
+
+                session.connect();
+            } catch (error) {
+                console.error('Connection error:', error);
+            }
+        }
+
+        function disconnect() {
+            if (session) {
+                session.disconnect();
+            }
+        }
+
+        function subscribe() {
+            try {
+                // Solace native wildcard syntax
+                const topic = solace.SolclientFactory.createTopicDestination(CONFIG.topics.sensorData);
+                session.subscribe(topic, true, CONFIG.topics.sensorData, 10000);
+                console.log('📡 Subscribed to:', CONFIG.topics.sensorData);
+            } catch (error) {
+                console.error('Subscribe error:', error);
+            }
+        }
+
+        // ============================================
+        // Message Handler
+        // ============================================
+        function handleMessage(message) {
+            try {
+                const payload = JSON.parse(message.getBinaryAttachment());
+                eventCount++;
+                eventsThisSecond++;
+                
+                updateSensor(payload);
+                addEventToStream(payload);
+                updateStats();
+            } catch (error) {
+                console.error('Message parse error:', error);
+            }
+        }
+
+        // ============================================
+        // UI Updates
+        // ============================================
+        function updateConnectionUI(connected) {
+            const dot = document.getElementById('statusDot');
+            const text = document.getElementById('statusText');
+            const btn = document.getElementById('connectBtn');
+            
+            if (connected) {
+                dot.classList.add('connected');
+                text.textContent = 'Verbunden';
+                btn.textContent = 'Trennen';
+            } else {
+                dot.classList.remove('connected');
+                text.textContent = 'Nicht verbunden';
+                btn.textContent = 'Verbinden';
+            }
+        }
+
+        function updateSensor(data) {
+            const sensorId = data.sensorId;
+            const isAnomaly = data.status === 'anomaly';
+            
+            // Store sensor data
+            sensors.set(sensorId, {
+                ...data,
+                lastUpdate: Date.now()
+            });
+            
+            // Update sensor tile
+            updateSensorTile(sensorId, data, isAnomaly);
+            
+            // Update map marker
+            updateMapMarker(sensorId, data, isAnomaly);
+        }
+
+        function updateSensorTile(sensorId, data, isAnomaly) {
+            let tile = document.getElementById(`tile-${sensorId}`);
+            const grid = document.getElementById('sensorGrid');
+            
+            if (!tile) {
+                tile = document.createElement('div');
+                tile.id = `tile-${sensorId}`;
+                tile.className = 'sensor-tile';
+                grid.appendChild(tile);
+            }
+            
+            tile.className = `sensor-tile ${isAnomaly ? 'anomaly' : ''}`;
+            tile.innerHTML = `
+                <div class="sensor-id">${sensorId}</div>
+                <div class="metrics">
+                    <div class="metric">
+                        <span class="label">V</span>
+                        <span>${data.metrics?.voltage?.toFixed(1) || '--'}</span>
+                    </div>
+                    <div class="metric">
+                        <span class="label">Hz</span>
+                        <span>${data.metrics?.frequency?.toFixed(2) || '--'}</span>
+                    </div>
+                    <div class="metric">
+                        <span class="label">%</span>
+                        <span>${data.metrics?.load?.toFixed(0) || '--'}</span>
+                    </div>
+                    <div class="metric">
+                        <span class="label">°C</span>
+                        <span>${data.metrics?.temperature?.toFixed(0) || '--'}</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        function updateMapMarker(sensorId, data, isAnomaly) {
+            const district = data.location?.district?.toLowerCase() || 'mitte';
+            const coords = DISTRICT_COORDS[district] || DISTRICT_COORDS['mitte'];
+            
+            // Add some randomness to spread markers within district
+            const hash = sensorId.split('').reduce((a, b) => ((a << 5) - a) + b.charCodeAt(0), 0);
+            const latOffset = ((hash % 100) - 50) * 0.001;
+            const lonOffset = (((hash >> 8) % 100) - 50) * 0.001;
+            
+            const lat = coords.lat + latOffset;
+            const lon = coords.lon + lonOffset;
+            
+            if (markers.has(sensorId)) {
+                // Update existing marker
+                const marker = markers.get(sensorId);
+                marker.setLatLng([lat, lon]);
+                
+                // Update icon color
+                const iconClass = isAnomaly ? 'anomaly' : 'normal';
+                marker.setIcon(L.divIcon({
+                    className: `sensor-marker ${iconClass}`,
+                    iconSize: [20, 20]
+                }));
+            } else {
+                // Create new marker
+                const iconClass = isAnomaly ? 'anomaly' : 'normal';
+                const marker = L.marker([lat, lon], {
+                    icon: L.divIcon({
+                        className: `sensor-marker ${iconClass}`,
+                        iconSize: [20, 20]
+                    })
+                }).addTo(map);
+                
+                marker.bindPopup(`
+                    <strong>${sensorId}</strong><br>
+                    District: ${data.location?.district || 'Unknown'}<br>
+                    Voltage: ${data.metrics?.voltage?.toFixed(1) || '--'} V<br>
+                    Frequency: ${data.metrics?.frequency?.toFixed(2) || '--'} Hz
+                `);
+                
+                markers.set(sensorId, marker);
+            }
+        }
+
+        function addEventToStream(data) {
+            const stream = document.getElementById('eventStream');
+            const isAnomaly = data.status === 'anomaly';
+            
+            const entry = document.createElement('div');
+            entry.className = `event-entry ${isAnomaly ? 'anomaly' : ''}`;
+            
+            const time = new Date(data.timestamp).toLocaleTimeString('de-DE');
+            const anomalyIcon = isAnomaly ? ' ⚠️' : '';
+            
+            entry.innerHTML = `
+                <span class="timestamp">${time}</span> 
+                <span class="sensor">${data.sensorId}</span> 
+                V:${data.metrics?.voltage?.toFixed(1)} Hz:${data.metrics?.frequency?.toFixed(2)} 
+                Load:${data.metrics?.load?.toFixed(0)}%${anomalyIcon}
+            `;
+            
+            stream.insertBefore(entry, stream.firstChild);
+            
+            // Keep only last 100 entries
+            while (stream.children.length > 100) {
+                stream.removeChild(stream.lastChild);
+            }
+        }
+
+        function updateStats() {
+            const sensorArray = Array.from(sensors.values());
+            
+            if (sensorArray.length === 0) return;
+            
+            // Calculate averages
+            const avgVoltage = sensorArray.reduce((sum, s) => sum + (s.metrics?.voltage || 0), 0) / sensorArray.length;
+            const avgFrequency = sensorArray.reduce((sum, s) => sum + (s.metrics?.frequency || 0), 0) / sensorArray.length;
+            const avgLoad = sensorArray.reduce((sum, s) => sum + (s.metrics?.load || 0), 0) / sensorArray.length;
+            const anomalies = sensorArray.filter(s => s.status === 'anomaly').length;
+            
+            document.getElementById('avgVoltage').textContent = `${avgVoltage.toFixed(1)} V`;
+            document.getElementById('avgFrequency').textContent = `${avgFrequency.toFixed(2)} Hz`;
+            document.getElementById('avgLoad').textContent = `${avgLoad.toFixed(0)} %`;
+            document.getElementById('anomalyCount').textContent = anomalies;
+            document.getElementById('eventCounter').textContent = `${eventCount.toLocaleString()} Events`;
+        }
+
+        // Events per second counter
+        setInterval(() => {
+            document.getElementById('eventsPerSec').textContent = eventsThisSecond;
+            eventsThisSecond = 0;
+        }, 1000);
+
+        // ============================================
+        // Initialize
+        // ============================================
+        document.addEventListener('DOMContentLoaded', () => {
+            initMap();
+        });
+    </script>
+</body>
+</html>
