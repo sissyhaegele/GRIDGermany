@@ -1,0 +1,758 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Grid Fleet Control - 100 Sensors</title>
+    <script src="https://cdn.jsdelivr.net/npm/mqtt@5.3.4/dist/mqtt.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 15px;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        h1 {
+            color: #667eea;
+            font-size: 22px;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #666;
+            font-size: 13px;
+            margin-bottom: 15px;
+        }
+        
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            gap: 10px;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        
+        .status-connected { background: #10b981; color: white; }
+        .status-disconnected { background: #ef4444; color: white; }
+        
+        .quick-count {
+            font-size: 11px;
+            color: #666;
+            font-weight: bold;
+        }
+        
+        .btn {
+            padding: 12px;
+            border: none;
+            border-radius: 10px;
+            font-size: 13px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            text-transform: uppercase;
+        }
+        
+        .btn:active { transform: scale(0.95); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        .btn-connect {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            width: 100%;
+        }
+        
+        .btn-start { background: linear-gradient(135deg, #10b981, #059669); color: white; }
+        .btn-stop { background: linear-gradient(135deg, #ef4444, #dc2626); color: white; }
+        .btn-pause { background: linear-gradient(135deg, #f59e0b, #d97706); color: white; }
+        
+        /* Quick Launch Buttons */
+        .quick-launch {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 6px;
+            margin-bottom: 15px;
+        }
+        
+        .quick-btn {
+            padding: 10px 4px;
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+        
+        .quick-btn:hover {
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+        }
+        
+        .quick-btn.active {
+            border-color: #10b981;
+            background: #d1fae5;
+        }
+        
+        .quick-number {
+            font-size: 20px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .quick-label {
+            font-size: 8px;
+            color: #666;
+            margin-top: 2px;
+        }
+        
+        /* Sensor List */
+        .sensor-list {
+            max-height: 350px;
+            overflow-y: auto;
+        }
+        
+        .sensor-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px;
+            margin-bottom: 6px;
+            background: #f9fafb;
+            border-radius: 10px;
+            border-left: 4px solid #e5e7eb;
+        }
+        
+        .sensor-item.running {
+            border-left-color: #10b981;
+            background: #d1fae5;
+        }
+        
+        .sensor-item.selected {
+            border-left-color: #667eea;
+            background: #ede9fe;
+        }
+        
+        .sensor-info {
+            flex: 1;
+        }
+        
+        .sensor-name {
+            font-size: 12px;
+            font-weight: bold;
+            color: #1f2937;
+        }
+        
+        .sensor-district {
+            font-size: 9px;
+            color: #6b7280;
+            text-transform: uppercase;
+        }
+        
+        .sensor-status {
+            font-size: 10px;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-weight: bold;
+        }
+        
+        .status-running { background: #d1fae5; color: #065f46; }
+        .status-stopped { background: #f3f4f6; color: #6b7280; }
+        
+        .sensor-controls {
+            display: flex;
+            gap: 4px;
+        }
+        
+        .sensor-btn {
+            padding: 5px 10px;
+            border: none;
+            border-radius: 8px;
+            font-size: 10px;
+            font-weight: bold;
+            cursor: pointer;
+            text-transform: uppercase;
+        }
+        
+        /* Bulk Controls */
+        .bulk-controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        
+        .log {
+            max-height: 120px;
+            overflow-y: auto;
+            font-size: 11px;
+            line-height: 1.5;
+            background: #f9fafb;
+            padding: 12px;
+            border-radius: 10px;
+            margin-top: 15px;
+        }
+        
+        .log-entry {
+            padding: 3px 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .log-time {
+            color: #9ca3af;
+            font-size: 10px;
+        }
+        
+        /* District filter */
+        .district-filter {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+            margin-bottom: 10px;
+        }
+        
+        .district-btn {
+            padding: 4px 10px;
+            border: 1px solid #ddd;
+            border-radius: 12px;
+            font-size: 10px;
+            cursor: pointer;
+            background: white;
+        }
+        
+        .district-btn.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="card">
+            <h1>🚀 Grid Fleet Control</h1>
+            <div class="subtitle">Berliner Stadtwerke - 100 Sensor Management</div>
+            
+            <div class="status-bar">
+                <span class="status-badge status-disconnected" id="connectionStatus">Disconnected</span>
+                <span class="quick-count">Active: <span id="activeCount">0</span> / 100</span>
+            </div>
+            
+            <button class="btn btn-connect" id="connectBtn" onclick="toggleConnection()">Connect to Broker</button>
+        </div>
+        
+        <!-- Quick Launch -->
+        <div class="card">
+            <h3 style="font-size: 14px; margin-bottom: 12px; color: #374151;">⚡ Quick Launch</h3>
+            <div class="quick-launch">
+                <div class="quick-btn" id="quick-1" onclick="quickLaunch(1)">
+                    <div class="quick-number">1</div>
+                    <div class="quick-label">Sensor</div>
+                </div>
+                <div class="quick-btn" id="quick-3" onclick="quickLaunch(3)">
+                    <div class="quick-number">3</div>
+                    <div class="quick-label">Test</div>
+                </div>
+                <div class="quick-btn" id="quick-7" onclick="quickLaunch(7)">
+                    <div class="quick-number">7</div>
+                    <div class="quick-label">POC</div>
+                </div>
+                <div class="quick-btn" id="quick-10" onclick="quickLaunch(10)">
+                    <div class="quick-number">10</div>
+                    <div class="quick-label">Small</div>
+                </div>
+                <div class="quick-btn" id="quick-25" onclick="quickLaunch(25)">
+                    <div class="quick-number">25</div>
+                    <div class="quick-label">Quarter</div>
+                </div>
+                <div class="quick-btn" id="quick-50" onclick="quickLaunch(50)">
+                    <div class="quick-number">50</div>
+                    <div class="quick-label">Half</div>
+                </div>
+                <div class="quick-btn" id="quick-100" onclick="quickLaunch(100)">
+                    <div class="quick-number">100</div>
+                    <div class="quick-label">All</div>
+                </div>
+            </div>
+            
+            <div class="bulk-controls">
+                <button class="btn btn-start" id="startAllBtn" onclick="startAll()" disabled>▶️ Start Selected</button>
+                <button class="btn btn-stop" id="stopAllBtn" onclick="stopAll()" disabled>⏹️ Stop All</button>
+            </div>
+        </div>
+        
+        <!-- Sensor List -->
+        <div class="card">
+            <h3 style="font-size: 14px; margin-bottom: 12px; color: #374151;">📊 Sensors</h3>
+            
+            <div class="district-filter" id="districtFilter">
+                <button class="district-btn active" onclick="filterDistrict('all')">All</button>
+            </div>
+            
+            <div class="sensor-list" id="sensorList">
+                <!-- Sensors will be populated here -->
+            </div>
+            
+            <div class="log" id="log">
+                <div class="log-entry">
+                    <span class="log-time">Ready</span> <span>Waiting to connect...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration - MQTT over WebSocket
+        const CONFIG = {
+            broker: 'mr-connection-gu0w0pjgchg.messaging.solace.cloud',
+            port: 8443,
+            username: 'solace-cloud-client',
+            password: 'iejmgp94muv7m5ahsfe9b50dvb'
+        };
+        
+        // All 100 Sensors
+        const SENSORS = [
+            // Mitte (15)
+            { id: 'TRF-MIT-001', name: 'Mitte 001', district: 'Mitte' },
+            { id: 'TRF-MIT-002', name: 'Mitte 002', district: 'Mitte' },
+            { id: 'TRF-MIT-003', name: 'Mitte 003', district: 'Mitte' },
+            { id: 'TRF-MIT-004', name: 'Mitte 004', district: 'Mitte' },
+            { id: 'TRF-MIT-005', name: 'Mitte 005', district: 'Mitte' },
+            { id: 'TRF-MIT-006', name: 'Mitte 006', district: 'Mitte' },
+            { id: 'TRF-MIT-007', name: 'Mitte 007', district: 'Mitte' },
+            { id: 'TRF-MIT-008', name: 'Mitte 008', district: 'Mitte' },
+            { id: 'TRF-MIT-009', name: 'Mitte 009', district: 'Mitte' },
+            { id: 'TRF-MIT-010', name: 'Mitte 010', district: 'Mitte' },
+            { id: 'TRF-MIT-042', name: 'Mitte 042', district: 'Mitte' },
+            { id: 'TRF-MIT-043', name: 'Mitte 043', district: 'Mitte' },
+            { id: 'TRF-MIT-044', name: 'Mitte 044', district: 'Mitte' },
+            { id: 'TRF-MIT-045', name: 'Mitte 045', district: 'Mitte' },
+            { id: 'TRF-MIT-046', name: 'Mitte 046', district: 'Mitte' },
+            
+            // Kreuzberg (12)
+            { id: 'TRF-KRZ-001', name: 'Kreuzberg 001', district: 'Kreuzberg' },
+            { id: 'TRF-KRZ-002', name: 'Kreuzberg 002', district: 'Kreuzberg' },
+            { id: 'TRF-KRZ-003', name: 'Kreuzberg 003', district: 'Kreuzberg' },
+            { id: 'TRF-KRZ-004', name: 'Kreuzberg 004', district: 'Kreuzberg' },
+            { id: 'TRF-KRZ-005', name: 'Kreuzberg 005', district: 'Kreuzberg' },
+            { id: 'TRF-KRZ-006', name: 'Kreuzberg 006', district: 'Kreuzberg' },
+            { id: 'TRF-KRZ-021', name: 'Kreuzberg 021', district: 'Kreuzberg' },
+            { id: 'TRF-KRZ-022', name: 'Kreuzberg 022', district: 'Kreuzberg' },
+            { id: 'TRF-KRZ-023', name: 'Kreuzberg 023', district: 'Kreuzberg' },
+            { id: 'TRF-KRZ-024', name: 'Kreuzberg 024', district: 'Kreuzberg' },
+            { id: 'TRF-KRZ-025', name: 'Kreuzberg 025', district: 'Kreuzberg' },
+            { id: 'TRF-KRZ-026', name: 'Kreuzberg 026', district: 'Kreuzberg' },
+            
+            // Charlottenburg (12)
+            { id: 'TRF-CHA-001', name: 'Charlottenburg 001', district: 'Charlottenburg' },
+            { id: 'TRF-CHA-002', name: 'Charlottenburg 002', district: 'Charlottenburg' },
+            { id: 'TRF-CHA-003', name: 'Charlottenburg 003', district: 'Charlottenburg' },
+            { id: 'TRF-CHA-004', name: 'Charlottenburg 004', district: 'Charlottenburg' },
+            { id: 'TRF-CHA-005', name: 'Charlottenburg 005', district: 'Charlottenburg' },
+            { id: 'TRF-CHA-006', name: 'Charlottenburg 006', district: 'Charlottenburg' },
+            { id: 'TRF-CHA-015', name: 'Charlottenburg 015', district: 'Charlottenburg' },
+            { id: 'TRF-CHA-016', name: 'Charlottenburg 016', district: 'Charlottenburg' },
+            { id: 'TRF-CHA-017', name: 'Charlottenburg 017', district: 'Charlottenburg' },
+            { id: 'TRF-CHA-018', name: 'Charlottenburg 018', district: 'Charlottenburg' },
+            { id: 'TRF-CHA-019', name: 'Charlottenburg 019', district: 'Charlottenburg' },
+            { id: 'TRF-CHA-020', name: 'Charlottenburg 020', district: 'Charlottenburg' },
+            
+            // Prenzlauer Berg (12)
+            { id: 'TRF-PRZ-001', name: 'Prenzlauer Berg 001', district: 'Prenzlauer Berg' },
+            { id: 'TRF-PRZ-002', name: 'Prenzlauer Berg 002', district: 'Prenzlauer Berg' },
+            { id: 'TRF-PRZ-003', name: 'Prenzlauer Berg 003', district: 'Prenzlauer Berg' },
+            { id: 'TRF-PRZ-004', name: 'Prenzlauer Berg 004', district: 'Prenzlauer Berg' },
+            { id: 'TRF-PRZ-005', name: 'Prenzlauer Berg 005', district: 'Prenzlauer Berg' },
+            { id: 'TRF-PRZ-006', name: 'Prenzlauer Berg 006', district: 'Prenzlauer Berg' },
+            { id: 'TRF-PRZ-031', name: 'Prenzlauer Berg 031', district: 'Prenzlauer Berg' },
+            { id: 'TRF-PRZ-032', name: 'Prenzlauer Berg 032', district: 'Prenzlauer Berg' },
+            { id: 'TRF-PRZ-033', name: 'Prenzlauer Berg 033', district: 'Prenzlauer Berg' },
+            { id: 'TRF-PRZ-034', name: 'Prenzlauer Berg 034', district: 'Prenzlauer Berg' },
+            { id: 'TRF-PRZ-035', name: 'Prenzlauer Berg 035', district: 'Prenzlauer Berg' },
+            { id: 'TRF-PRZ-036', name: 'Prenzlauer Berg 036', district: 'Prenzlauer Berg' },
+            
+            // Friedrichshain (10)
+            { id: 'TRF-FRH-001', name: 'Friedrichshain 001', district: 'Friedrichshain' },
+            { id: 'TRF-FRH-002', name: 'Friedrichshain 002', district: 'Friedrichshain' },
+            { id: 'TRF-FRH-003', name: 'Friedrichshain 003', district: 'Friedrichshain' },
+            { id: 'TRF-FRH-004', name: 'Friedrichshain 004', district: 'Friedrichshain' },
+            { id: 'TRF-FRH-005', name: 'Friedrichshain 005', district: 'Friedrichshain' },
+            { id: 'TRF-FRH-006', name: 'Friedrichshain 006', district: 'Friedrichshain' },
+            { id: 'TRF-FRH-007', name: 'Friedrichshain 007', district: 'Friedrichshain' },
+            { id: 'TRF-FRH-008', name: 'Friedrichshain 008', district: 'Friedrichshain' },
+            { id: 'TRF-FRH-009', name: 'Friedrichshain 009', district: 'Friedrichshain' },
+            { id: 'TRF-FRH-010', name: 'Friedrichshain 010', district: 'Friedrichshain' },
+            
+            // Neukölln (10)
+            { id: 'TRF-NEU-001', name: 'Neukölln 001', district: 'Neukölln' },
+            { id: 'TRF-NEU-002', name: 'Neukölln 002', district: 'Neukölln' },
+            { id: 'TRF-NEU-003', name: 'Neukölln 003', district: 'Neukölln' },
+            { id: 'TRF-NEU-004', name: 'Neukölln 004', district: 'Neukölln' },
+            { id: 'TRF-NEU-005', name: 'Neukölln 005', district: 'Neukölln' },
+            { id: 'TRF-NEU-006', name: 'Neukölln 006', district: 'Neukölln' },
+            { id: 'TRF-NEU-007', name: 'Neukölln 007', district: 'Neukölln' },
+            { id: 'TRF-NEU-008', name: 'Neukölln 008', district: 'Neukölln' },
+            { id: 'TRF-NEU-009', name: 'Neukölln 009', district: 'Neukölln' },
+            { id: 'TRF-NEU-010', name: 'Neukölln 010', district: 'Neukölln' },
+            
+            // Tempelhof (8)
+            { id: 'TRF-TMP-001', name: 'Tempelhof 001', district: 'Tempelhof' },
+            { id: 'TRF-TMP-002', name: 'Tempelhof 002', district: 'Tempelhof' },
+            { id: 'TRF-TMP-003', name: 'Tempelhof 003', district: 'Tempelhof' },
+            { id: 'TRF-TMP-004', name: 'Tempelhof 004', district: 'Tempelhof' },
+            { id: 'TRF-TMP-005', name: 'Tempelhof 005', district: 'Tempelhof' },
+            { id: 'TRF-TMP-006', name: 'Tempelhof 006', district: 'Tempelhof' },
+            { id: 'TRF-TMP-007', name: 'Tempelhof 007', district: 'Tempelhof' },
+            { id: 'TRF-TMP-008', name: 'Tempelhof 008', district: 'Tempelhof' },
+            
+            // Schöneberg (8)
+            { id: 'TRF-SCH-001', name: 'Schöneberg 001', district: 'Schöneberg' },
+            { id: 'TRF-SCH-002', name: 'Schöneberg 002', district: 'Schöneberg' },
+            { id: 'TRF-SCH-003', name: 'Schöneberg 003', district: 'Schöneberg' },
+            { id: 'TRF-SCH-004', name: 'Schöneberg 004', district: 'Schöneberg' },
+            { id: 'TRF-SCH-005', name: 'Schöneberg 005', district: 'Schöneberg' },
+            { id: 'TRF-SCH-006', name: 'Schöneberg 006', district: 'Schöneberg' },
+            { id: 'TRF-SCH-007', name: 'Schöneberg 007', district: 'Schöneberg' },
+            { id: 'TRF-SCH-008', name: 'Schöneberg 008', district: 'Schöneberg' },
+            
+            // Wedding (7)
+            { id: 'TRF-WED-001', name: 'Wedding 001', district: 'Wedding' },
+            { id: 'TRF-WED-002', name: 'Wedding 002', district: 'Wedding' },
+            { id: 'TRF-WED-003', name: 'Wedding 003', district: 'Wedding' },
+            { id: 'TRF-WED-004', name: 'Wedding 004', district: 'Wedding' },
+            { id: 'TRF-WED-005', name: 'Wedding 005', district: 'Wedding' },
+            { id: 'TRF-WED-006', name: 'Wedding 006', district: 'Wedding' },
+            { id: 'TRF-WED-007', name: 'Wedding 007', district: 'Wedding' },
+            
+            // Spandau (6)
+            { id: 'TRF-SPA-001', name: 'Spandau 001', district: 'Spandau' },
+            { id: 'TRF-SPA-002', name: 'Spandau 002', district: 'Spandau' },
+            { id: 'TRF-SPA-003', name: 'Spandau 003', district: 'Spandau' },
+            { id: 'TRF-SPA-004', name: 'Spandau 004', district: 'Spandau' },
+            { id: 'TRF-SPA-005', name: 'Spandau 005', district: 'Spandau' },
+            { id: 'TRF-SPA-006', name: 'Spandau 006', district: 'Spandau' },
+        ];
+        
+        // Add selected property to all sensors
+        SENSORS.forEach(s => s.selected = false);
+        
+        let client = null;
+        let connected = false;
+        let sensorStatus = {};
+        let currentDistrictFilter = 'all';
+        
+        function initSensors() {
+            // Build district filter buttons
+            const districts = [...new Set(SENSORS.map(s => s.district))];
+            const filterEl = document.getElementById('districtFilter');
+            filterEl.innerHTML = '<button class="district-btn active" onclick="filterDistrict(\'all\')">All (100)</button>';
+            
+            districts.forEach(district => {
+                const count = SENSORS.filter(s => s.district === district).length;
+                const btn = document.createElement('button');
+                btn.className = 'district-btn';
+                btn.onclick = () => filterDistrict(district);
+                btn.textContent = `${district} (${count})`;
+                btn.id = `filter-${district}`;
+                filterEl.appendChild(btn);
+            });
+            
+            // Build sensor list
+            renderSensorList();
+        }
+        
+        function renderSensorList() {
+            const list = document.getElementById('sensorList');
+            list.innerHTML = '';
+            
+            const filteredSensors = currentDistrictFilter === 'all' 
+                ? SENSORS 
+                : SENSORS.filter(s => s.district === currentDistrictFilter);
+            
+            filteredSensors.forEach(sensor => {
+                const item = document.createElement('div');
+                item.className = 'sensor-item' + (sensor.selected ? ' selected' : '');
+                item.id = `sensor-${sensor.id}`;
+                
+                item.innerHTML = `
+                    <div class="sensor-info">
+                        <div class="sensor-name">${sensor.id}</div>
+                        <div class="sensor-district">${sensor.district}</div>
+                    </div>
+                    <span class="sensor-status status-stopped" id="status-${sensor.id}">Stopped</span>
+                    <div class="sensor-controls">
+                        <button class="sensor-btn btn-start" onclick="startSensor('${sensor.id}')" id="start-${sensor.id}" disabled>▶️</button>
+                        <button class="sensor-btn btn-stop" onclick="stopSensor('${sensor.id}')" id="stop-${sensor.id}" disabled>⏹️</button>
+                    </div>
+                `;
+                
+                list.appendChild(item);
+                sensorStatus[sensor.id] = 'stopped';
+            });
+            
+            updateActiveCount();
+        }
+        
+        function filterDistrict(district) {
+            currentDistrictFilter = district;
+            
+            // Update button states
+            document.querySelectorAll('.district-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            if (district === 'all') {
+                document.querySelector('.district-btn').classList.add('active');
+            } else {
+                document.getElementById(`filter-${district}`)?.classList.add('active');
+            }
+            
+            renderSensorList();
+            
+            // Re-enable buttons if connected
+            if (connected) {
+                enableControls();
+            }
+        }
+        
+        function quickLaunch(count) {
+            // Reset all selections
+            SENSORS.forEach(s => s.selected = false);
+            
+            // Select first N sensors
+            for (let i = 0; i < Math.min(count, SENSORS.length); i++) {
+                SENSORS[i].selected = true;
+            }
+            
+            updateQuickButtons();
+            renderSensorList();
+            addLog(`⚡ Selected ${count} sensor(s)`);
+        }
+        
+        function updateQuickButtons() {
+            const selectedCount = SENSORS.filter(s => s.selected).length;
+            
+            [1, 3, 7, 10, 25, 50, 100].forEach(count => {
+                const btn = document.getElementById(`quick-${count}`);
+                if (btn) {
+                    btn.className = 'quick-btn' + (selectedCount === count ? ' active' : '');
+                }
+            });
+        }
+        
+        function updateActiveCount() {
+            const active = Object.values(sensorStatus).filter(s => s === 'running').length;
+            document.getElementById('activeCount').textContent = active;
+        }
+        
+        function addLog(message) {
+            const log = document.getElementById('log');
+            const time = new Date().toLocaleTimeString('de-DE');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = `<span class="log-time">${time}</span> <span>${message}</span>`;
+            log.insertBefore(entry, log.firstChild);
+            
+            while (log.children.length > 30) {
+                log.removeChild(log.lastChild);
+            }
+        }
+        
+        function toggleConnection() {
+            if (connected) {
+                disconnect();
+            } else {
+                connect();
+            }
+        }
+        
+        function connect() {
+            addLog('🔌 Connecting to Solace (MQTT)...');
+            
+            const url = `wss://${CONFIG.broker}:${CONFIG.port}`;
+            client = mqtt.connect(url, {
+                clientId: `fleet-control-${Date.now()}`,
+                username: CONFIG.username,
+                password: CONFIG.password,
+                clean: true,
+                reconnectPeriod: 5000,
+                protocolVersion: 4
+            });
+            
+            client.on('connect', () => {
+                connected = true;
+                addLog('✅ Connected!');
+                
+                document.getElementById('connectionStatus').textContent = 'Connected';
+                document.getElementById('connectionStatus').className = 'status-badge status-connected';
+                document.getElementById('connectBtn').textContent = 'Disconnect';
+                
+                enableControls();
+                
+                // Subscribe to all sensor status using MQTT wildcard (+)
+                client.subscribe('control/sensor/+/status', { qos: 1 });
+                
+                addLog('📡 Subscribed to control/sensor/+/status');
+            });
+            
+            client.on('message', (topic, message) => {
+                try {
+                    const data = JSON.parse(message.toString());
+                    const sensorId = topic.split('/')[2];
+                    
+                    if (data.status && sensorStatus[sensorId] !== undefined) {
+                        sensorStatus[sensorId] = data.status;
+                        
+                        const statusEl = document.getElementById(`status-${sensorId}`);
+                        const itemEl = document.getElementById(`sensor-${sensorId}`);
+                        
+                        if (statusEl && itemEl) {
+                            if (data.status === 'running' || data.status === 'started') {
+                                statusEl.textContent = '● Running';
+                                statusEl.className = 'sensor-status status-running';
+                                itemEl.classList.add('running');
+                            } else {
+                                statusEl.textContent = '○ Stopped';
+                                statusEl.className = 'sensor-status status-stopped';
+                                itemEl.classList.remove('running');
+                            }
+                        }
+                        
+                        updateActiveCount();
+                    }
+                } catch (e) {
+                    console.error('Parse error:', e);
+                }
+            });
+            
+            client.on('error', (err) => {
+                addLog(`❌ Error: ${err.message}`);
+            });
+            
+            client.on('close', () => {
+                connected = false;
+                document.getElementById('connectionStatus').textContent = 'Disconnected';
+                document.getElementById('connectionStatus').className = 'status-badge status-disconnected';
+                document.getElementById('connectBtn').textContent = 'Connect to Broker';
+                addLog('🔌 Disconnected');
+            });
+        }
+        
+        function enableControls() {
+            document.getElementById('startAllBtn').disabled = false;
+            document.getElementById('stopAllBtn').disabled = false;
+            
+            SENSORS.forEach(sensor => {
+                const startBtn = document.getElementById(`start-${sensor.id}`);
+                const stopBtn = document.getElementById(`stop-${sensor.id}`);
+                if (startBtn) startBtn.disabled = false;
+                if (stopBtn) stopBtn.disabled = false;
+            });
+        }
+        
+        function disconnect() {
+            if (client) {
+                client.end();
+                client = null;
+            }
+        }
+        
+        function startSensor(sensorId) {
+            sendCommand(sensorId, 'start');
+        }
+        
+        function stopSensor(sensorId) {
+            sendCommand(sensorId, 'stop');
+        }
+        
+        function startAll() {
+            const selected = SENSORS.filter(s => s.selected);
+            
+            if (selected.length === 0) {
+                addLog('⚠️ No sensors selected!');
+                return;
+            }
+            
+            addLog(`🚀 Starting ${selected.length} sensors...`);
+            selected.forEach((sensor, index) => {
+                // Stagger commands to avoid overwhelming
+                setTimeout(() => {
+                    sendCommand(sensor.id, 'start');
+                }, index * 50);
+            });
+        }
+        
+        function stopAll() {
+            const selected = SENSORS.filter(s => s.selected);
+            console.log('stopAll called, selected:', selected.length);
+            addLog(`🛑 Stopping ${selected.length > 0 ? selected.length + ' selected' : 'all'} sensors...`);
+            
+            const toStop = selected.length > 0 ? selected : SENSORS;
+            console.log('toStop count:', toStop.length);
+            
+            toStop.forEach((sensor, index) => {
+                setTimeout(() => {
+                    console.log('Sending stop to:', sensor.id);
+                    sendCommand(sensor.id, 'stop');
+                }, index * 20);
+            });
+        }
+        
+        function sendCommand(sensorId, command) {
+            if (!connected || !client) {
+                addLog('❌ Not connected!');
+                return;
+            }
+            
+            const payload = {
+                command: command,
+                requestId: `req-${Date.now()}`
+            };
+            
+            // Control topic for MQTT
+            const topic = `control/sensor/${sensorId}/command`;
+            
+            client.publish(topic, JSON.stringify(payload), { qos: 1 });
+        }
+        
+        // Initialize on load
+        window.addEventListener('load', () => {
+            initSensors();
+            addLog('🚀 Fleet Control ready (100 sensors)');
+            addLog('📋 Protocol: MQTT over WebSocket');
+            addLog('📋 Control Topic: control/sensor/+/command');
+        });
+    </script>
+</body>
+</html>

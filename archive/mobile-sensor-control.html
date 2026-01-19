@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Grid Sensor Control</title>
+    <script src="https://unpkg.com/mqtt@5.3.4/dist/mqtt.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+        
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 20px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        h1 {
+            color: #667eea;
+            font-size: 24px;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 20px;
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .status-connected {
+            background: #10b981;
+            color: white;
+        }
+        
+        .status-disconnected {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .status-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .sensor-status {
+            font-size: 18px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .button-grid {
+            display: grid;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .btn {
+            padding: 18px;
+            border: none;
+            border-radius: 15px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .btn:active {
+            transform: scale(0.95);
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .btn-start {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+        }
+        
+        .btn-stop {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+        }
+        
+        .btn-pause {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: white;
+        }
+        
+        .btn-connect {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 20px;
+        }
+        
+        .stat-box {
+            background: #f3f4f6;
+            padding: 15px;
+            border-radius: 12px;
+            text-align: center;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .log {
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 12px;
+            line-height: 1.6;
+            background: #f9fafb;
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 15px;
+        }
+        
+        .log-entry {
+            padding: 5px 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        
+        .log-entry:last-child {
+            border-bottom: none;
+        }
+        
+        .log-time {
+            color: #9ca3af;
+            font-size: 11px;
+        }
+        
+        .emoji {
+            font-size: 20px;
+            margin-right: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header Card -->
+        <div class="card">
+            <h1>⚡ Grid Sensor Control</h1>
+            <div class="subtitle">Berliner Stadtwerke</div>
+            
+            <div class="status-info">
+                <span class="status-badge" id="connectionStatus">Disconnected</span>
+                <span class="sensor-status" id="sensorStatus">●</span>
+            </div>
+            
+            <button class="btn btn-connect" id="connectBtn" onclick="toggleConnection()">
+                Connect to Broker
+            </button>
+        </div>
+        
+        <!-- Control Card -->
+        <div class="card">
+            <h2 style="font-size: 18px; margin-bottom: 15px; color: #667eea;">Sensor Commands</h2>
+            
+            <div class="button-grid">
+                <button class="btn btn-start" onclick="sendCommand('start')" id="startBtn" disabled>
+                    <span class="emoji">▶️</span> Start Sensor
+                </button>
+                
+                <button class="btn btn-stop" onclick="sendCommand('stop')" id="stopBtn" disabled>
+                    <span class="emoji">⏹️</span> Stop Sensor
+                </button>
+                
+                <button class="btn btn-pause" onclick="sendCommand('pause')" id="pauseBtn" disabled>
+                    <span class="emoji">⏸️</span> Pause (5 Min)
+                </button>
+            </div>
+        </div>
+        
+        <!-- Stats Card -->
+        <div class="card">
+            <h2 style="font-size: 18px; margin-bottom: 15px; color: #667eea;">Statistics</h2>
+            
+            <div class="stats">
+                <div class="stat-box">
+                    <div class="stat-label">Events</div>
+                    <div class="stat-value" id="eventCount">0</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-label">Uptime</div>
+                    <div class="stat-value" id="uptime">0s</div>
+                </div>
+            </div>
+            
+            <div class="log" id="log">
+                <div class="log-entry">
+                    <span class="log-time">Ready</span>
+                    <span>Waiting to connect...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration - Berliner Stadtwerke Showcase
+        const CONFIG = {
+            broker: 'mr-connection-gu0w0pjgchg.messaging.solace.cloud',
+            port: 8443, // WSS port for web browsers (try 8443, 8884, or 8008 if this doesn't work)
+            username: 'solace-cloud-client',
+            password: 'iejmgp94muv7m5ahsfe9b50dvb',
+            sensorId: 'TRF-MIT-042',
+            // Note: Python/Terminal uses port 8883 (MQTT/TLS)
+            //       Browser/Mobile uses port 8443 (WebSocket Secure)
+        };
+        
+        let client = null;
+        let connected = false;
+        let eventCount = 0;
+        let startTime = null;
+        let uptimeInterval = null;
+        
+        function addLog(message) {
+            const log = document.getElementById('log');
+            const time = new Date().toLocaleTimeString('de-DE');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = `<span class="log-time">${time}</span> <span>${message}</span>`;
+            log.insertBefore(entry, log.firstChild);
+            
+            // Keep only last 10 entries
+            while (log.children.length > 10) {
+                log.removeChild(log.lastChild);
+            }
+        }
+        
+        function updateConnectionStatus(status) {
+            const badge = document.getElementById('connectionStatus');
+            const connectBtn = document.getElementById('connectBtn');
+            
+            if (status) {
+                badge.textContent = 'Connected';
+                badge.className = 'status-badge status-connected';
+                connectBtn.textContent = 'Disconnect';
+                document.getElementById('startBtn').disabled = false;
+                document.getElementById('stopBtn').disabled = false;
+                document.getElementById('pauseBtn').disabled = false;
+            } else {
+                badge.textContent = 'Disconnected';
+                badge.className = 'status-badge status-disconnected';
+                connectBtn.textContent = 'Connect to Broker';
+                document.getElementById('startBtn').disabled = true;
+                document.getElementById('stopBtn').disabled = true;
+                document.getElementById('pauseBtn').disabled = true;
+            }
+        }
+        
+        function updateSensorStatus(status) {
+            const statusEl = document.getElementById('sensorStatus');
+            if (status === 'running' || status === 'started') {
+                statusEl.textContent = '● Running';
+                statusEl.style.color = '#10b981';
+            } else if (status === 'stopped') {
+                statusEl.textContent = '● Stopped';
+                statusEl.style.color = '#ef4444';
+            } else if (status === 'paused') {
+                statusEl.textContent = '⏸️ Paused';
+                statusEl.style.color = '#f59e0b';
+            } else {
+                statusEl.textContent = '● ' + status;
+                statusEl.style.color = '#667eea';
+            }
+        }
+        
+        function updateStats(events, uptime) {
+            if (events !== undefined) {
+                document.getElementById('eventCount').textContent = events;
+                eventCount = events;
+            }
+            if (uptime !== undefined) {
+                const minutes = Math.floor(uptime / 60);
+                const seconds = uptime % 60;
+                document.getElementById('uptime').textContent = 
+                    minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+            }
+        }
+        
+        function toggleConnection() {
+            if (connected) {
+                disconnect();
+            } else {
+                connect();
+            }
+        }
+        
+        function connect() {
+            addLog('🔌 Connecting to broker...');
+            
+            const clientId = `mobile-control-${Date.now()}`;
+            // Try WebSocket without path first (Solace Cloud default)
+            const url = `wss://${CONFIG.broker}:${CONFIG.port}`;
+            
+            addLog(`📡 Connecting to: ${url}`);
+            
+            client = mqtt.connect(url, {
+                clientId: clientId,
+                username: CONFIG.username,
+                password: CONFIG.password,
+                clean: true,
+                reconnectPeriod: 5000,
+                protocolVersion: 4
+            });
+            
+            client.on('connect', () => {
+                connected = true;
+                addLog('✅ Connected to broker');
+                updateConnectionStatus(true);
+                
+                // Subscribe to status updates
+                const statusTopic = `control/sensor/${CONFIG.sensorId}/status`;
+                client.subscribe(statusTopic, { qos: 1 }, (err) => {
+                    if (!err) {
+                        addLog(`📡 Subscribed to status updates`);
+                    }
+                });
+                
+                startTime = Date.now();
+                if (uptimeInterval) clearInterval(uptimeInterval);
+                uptimeInterval = setInterval(() => {
+                    const uptime = Math.floor((Date.now() - startTime) / 1000);
+                    updateStats(undefined, uptime);
+                }, 1000);
+            });
+            
+            client.on('message', (topic, message) => {
+                try {
+                    const data = JSON.parse(message.toString());
+                    
+                    if (data.status) {
+                        updateSensorStatus(data.status);
+                        addLog(`📨 Status: ${data.status}`);
+                    }
+                    
+                    if (data.eventsPublished !== undefined) {
+                        updateStats(data.eventsPublished, undefined);
+                    }
+                    
+                } catch (e) {
+                    console.error('Parse error:', e);
+                }
+            });
+            
+            client.on('error', (err) => {
+                addLog(`❌ Error: ${err.message}`);
+            });
+            
+            client.on('close', () => {
+                connected = false;
+                addLog('🔌 Disconnected');
+                updateConnectionStatus(false);
+                if (uptimeInterval) {
+                    clearInterval(uptimeInterval);
+                    uptimeInterval = null;
+                }
+            });
+        }
+        
+        function disconnect() {
+            if (client) {
+                client.end();
+                client = null;
+            }
+        }
+        
+        function sendCommand(command) {
+            if (!connected || !client) {
+                addLog('❌ Not connected!');
+                return;
+            }
+            
+            const payload = {
+                command: command,
+                requestId: `req-${Date.now()}`
+            };
+            
+            if (command === 'pause') {
+                payload.duration = 300; // 5 minutes
+            }
+            
+            const topic = `control/sensor/${CONFIG.sensorId}/command`;
+            
+            client.publish(topic, JSON.stringify(payload), { qos: 1 }, (err) => {
+                if (err) {
+                    addLog(`❌ Failed to send ${command}`);
+                } else {
+                    addLog(`✅ Command sent: ${command.toUpperCase()}`);
+                }
+            });
+        }
+        
+        // Prevent zoom on iOS
+        document.addEventListener('gesturestart', function (e) {
+            e.preventDefault();
+        });
+    </script>
+</body>
+</html>

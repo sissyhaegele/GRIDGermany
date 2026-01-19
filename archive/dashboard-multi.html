@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BS GRID Dashboard - Multi-Sensor (SMF)</title>
+    <script src="solclient-full.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            color: #333;
+            padding: 15px;
+            min-height: 100vh;
+        }
+        
+        .header {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .header h1 {
+            color: #1e3c72;
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+        
+        .protocol-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #00c895, #00a67c);
+            color: white;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: bold;
+            margin-left: 10px;
+            vertical-align: middle;
+        }
+        
+        .status-bar {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        
+        .status-badge {
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        
+        .status-connected { background: #10b981; color: white; }
+        .status-disconnected { background: #ef4444; color: white; }
+        
+        .connect-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 8px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+        }
+        
+        /* Sensor Map */
+        .map-container {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .map-title {
+            font-size: 18px;
+            color: #1e3c72;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+        
+        .berlin-map {
+            position: relative;
+            width: 100%;
+            height: 400px;
+            background: linear-gradient(135deg, #e0e7ff 0%, #f3f4f6 100%);
+            border-radius: 10px;
+            border: 2px solid #e5e7eb;
+            overflow: hidden;
+        }
+        
+        /* District areas on map */
+        .district {
+            position: absolute;
+            border-radius: 10px;
+            background: rgba(255,255,255,0.6);
+            border: 2px dashed #cbd5e1;
+            display: flex;
+            flex-direction: column;
+            padding: 4px;
+            transition: all 0.3s;
+        }
+        
+        .district:hover {
+            background: rgba(255,255,255,0.85);
+            border-color: #667eea;
+        }
+        
+        .district-label {
+            font-size: 9px;
+            font-weight: bold;
+            color: #1e3c72;
+            text-align: center;
+            padding: 2px 4px;
+            background: rgba(255,255,255,0.9);
+            border-radius: 4px;
+            margin-bottom: 4px;
+        }
+        
+        .district-sensors {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 2px;
+            justify-content: center;
+            align-content: flex-start;
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        .sensor-marker {
+            width: 28px;
+            height: 28px;
+            background: white;
+            border-radius: 50%;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            border: 3px solid #10b981;
+        }
+        
+        .sensor-marker:hover {
+            transform: scale(1.3);
+            z-index: 100;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+        }
+        
+        .sensor-marker.offline {
+            border-color: #9ca3af;
+            opacity: 0.6;
+        }
+        
+        .sensor-marker.anomaly {
+            border-color: #ef4444;
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+        }
+        
+        .marker-icon {
+            font-size: 10px;
+        }
+        
+        .marker-label {
+            font-size: 6px;
+            font-weight: bold;
+            color: #666;
+        }
+        
+        /* Tooltip */
+        .tooltip {
+            display: none;
+            position: absolute;
+            background: #1e3c72;
+            color: white;
+            padding: 10px 14px;
+            border-radius: 10px;
+            font-size: 12px;
+            z-index: 1000;
+            pointer-events: none;
+            white-space: nowrap;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        
+        .tooltip.show { display: block; }
+        
+        /* Sensor Grid */
+        .sensor-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 15px;
+            margin-bottom: 15px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .sensor-card {
+            background: white;
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+            border-left: 4px solid #10b981;
+        }
+        
+        .sensor-card.offline {
+            border-left-color: #9ca3af;
+            opacity: 0.7;
+        }
+        
+        .sensor-card.anomaly {
+            border-left-color: #ef4444;
+            animation: cardPulse 2s infinite;
+        }
+        
+        @keyframes cardPulse {
+            0%, 100% { box-shadow: 0 6px 20px rgba(0,0,0,0.15); }
+            50% { box-shadow: 0 6px 20px rgba(239, 68, 68, 0.4); }
+        }
+        
+        .sensor-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        
+        .sensor-name {
+            font-size: 14px;
+            font-weight: bold;
+            color: #1e3c72;
+        }
+        
+        .sensor-district {
+            font-size: 10px;
+            color: #666;
+            text-transform: uppercase;
+        }
+        
+        .sensor-status {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 10px;
+            font-weight: bold;
+        }
+        
+        .status-online { background: #d1fae5; color: #065f46; }
+        .status-offline { background: #f3f4f6; color: #6b7280; }
+        .status-anomaly { background: #fee2e2; color: #991b1b; }
+        
+        .sensor-metrics {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+        
+        .metric-box {
+            background: #f9fafb;
+            padding: 10px;
+            border-radius: 8px;
+        }
+        
+        .metric-label {
+            font-size: 10px;
+            color: #666;
+            margin-bottom: 4px;
+        }
+        
+        .metric-value {
+            font-size: 18px;
+            font-weight: bold;
+            color: #1e3c72;
+        }
+        
+        .metric-unit {
+            font-size: 10px;
+            color: #999;
+        }
+        
+        .last-update {
+            font-size: 9px;
+            color: #9ca3af;
+            margin-top: 8px;
+            text-align: center;
+        }
+        
+        /* Summary Stats */
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .summary-card {
+            background: white;
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+            text-align: center;
+        }
+        
+        .summary-value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #1e3c72;
+        }
+        
+        .summary-label {
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+            margin-top: 5px;
+        }
+        
+        /* Event Log */
+        .log-container {
+            background: white;
+            border-radius: 12px;
+            padding: 15px;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+        }
+        
+        .log-title {
+            font-size: 16px;
+            color: #1e3c72;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        
+        .log {
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 11px;
+            line-height: 1.5;
+        }
+        
+        .log-entry {
+            padding: 6px 0;
+            border-bottom: 1px solid #f3f4f6;
+        }
+        
+        .log-time {
+            color: #9ca3af;
+            font-size: 10px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <h1>🗺️ BS GRID Dashboard - Multi-Sensor <span class="protocol-badge">SMF Protocol</span></h1>
+        <div class="status-bar">
+            <span class="status-badge status-disconnected" id="connectionStatus">Disconnected</span>
+            <span style="font-size: 11px; color: #666;">Active Sensors: <strong id="activeSensors">0</strong></span>
+            <span style="font-size: 11px; color: #666;">Total Events: <strong id="totalEvents">0</strong></span>
+            <button class="connect-btn" id="connectBtn" onclick="toggleConnection()">Connect to Broker</button>
+        </div>
+    </div>
+    
+    <!-- Berlin Map with Sensor Locations -->
+    <div class="map-container">
+        <div class="map-title">📍 Sensor Locations - Berlin</div>
+        <div class="berlin-map" id="berlinMap">
+            <!-- Districts positioned according to Berlin geography -->
+            <div class="district" id="district-SPA" style="left: 1%; top: 20%; width: 16%; height: 35%;">
+                <div class="district-label">Spandau</div>
+                <div class="district-sensors" id="sensors-SPA"></div>
+            </div>
+            <div class="district" id="district-WED" style="left: 32%; top: 3%; width: 18%; height: 24%;">
+                <div class="district-label">Wedding</div>
+                <div class="district-sensors" id="sensors-WED"></div>
+            </div>
+            <div class="district" id="district-PRZ" style="left: 52%; top: 3%; width: 22%; height: 28%;">
+                <div class="district-label">Prenzlauer Berg</div>
+                <div class="district-sensors" id="sensors-PRZ"></div>
+            </div>
+            <div class="district" id="district-CHA" style="left: 6%; top: 28%; width: 22%; height: 30%;">
+                <div class="district-label">Charlottenburg</div>
+                <div class="district-sensors" id="sensors-CHA"></div>
+            </div>
+            <div class="district" id="district-MIT" style="left: 35%; top: 26%; width: 18%; height: 28%;">
+                <div class="district-label">Mitte</div>
+                <div class="district-sensors" id="sensors-MIT"></div>
+            </div>
+            <div class="district" id="district-FRH" style="left: 58%; top: 30%; width: 20%; height: 26%;">
+                <div class="district-label">Friedrichshain</div>
+                <div class="district-sensors" id="sensors-FRH"></div>
+            </div>
+            <div class="district" id="district-SCH" style="left: 22%; top: 54%; width: 18%; height: 26%;">
+                <div class="district-label">Schöneberg</div>
+                <div class="district-sensors" id="sensors-SCH"></div>
+            </div>
+            <div class="district" id="district-KRZ" style="left: 45%; top: 52%; width: 18%; height: 26%;">
+                <div class="district-label">Kreuzberg</div>
+                <div class="district-sensors" id="sensors-KRZ"></div>
+            </div>
+            <div class="district" id="district-TMP" style="left: 28%; top: 74%; width: 22%; height: 24%;">
+                <div class="district-label">Tempelhof</div>
+                <div class="district-sensors" id="sensors-TMP"></div>
+            </div>
+            <div class="district" id="district-NEU" style="left: 54%; top: 72%; width: 22%; height: 26%;">
+                <div class="district-label">Neukölln</div>
+                <div class="district-sensors" id="sensors-NEU"></div>
+            </div>
+            
+            <!-- Tooltip -->
+            <div class="tooltip" id="tooltip"></div>
+        </div>
+    </div>
+    
+    <!-- Summary Statistics -->
+    <div class="summary-grid">
+        <div class="summary-card">
+            <div class="summary-value" id="avgPower">--</div>
+            <div class="summary-label">Avg Throughput (Mbps)</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-value" id="avgTemp">--</div>
+            <div class="summary-label">Avg Temp (°C)</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-value" id="eventRate">--</div>
+            <div class="summary-label">Events/Sec</div>
+        </div>
+        <div class="summary-card">
+            <div class="summary-value" id="anomalyCount">0</div>
+            <div class="summary-label">Anomalies</div>
+        </div>
+    </div>
+    
+    <!-- Individual Sensor Cards -->
+    <div class="sensor-grid" id="sensorGrid">
+        <!-- Sensor cards will be added dynamically -->
+    </div>
+    
+    <!-- Event Log -->
+    <div class="log-container">
+        <div class="log-title">📋 Live Event Stream</div>
+        <div class="log" id="log">
+            <div class="log-entry">
+                <span class="log-time">Ready</span>
+                <span>Waiting to connect to broker...</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ═══════════════════════════════════════════════════════════════
+        // SOLACE SMF CONFIGURATION
+        // ═══════════════════════════════════════════════════════════════
+        const CONFIG = {
+            url: 'wss://mr-connection-gu0w0pjgchg.messaging.solace.cloud:443',
+            vpn: 'germangrid_berlin',
+            username: 'solace-cloud-client',
+            password: 'iejmgp94muv7m5ahsfe9b50dvb'
+        };
+        
+        // SMF Topic subscription with Solace wildcards (* instead of +)
+        const SUBSCRIPTION_TOPIC = 'bs/*/mv/transformer/powerline/statusUpdated/v1/*';
+        
+        // District mapping
+        const DISTRICTS = {
+            'MIT': 'Mitte',
+            'KRZ': 'Kreuzberg',
+            'CHA': 'Charlottenburg',
+            'PRZ': 'Prenzlauer Berg',
+            'FRH': 'Friedrichshain',
+            'NEU': 'Neukölln',
+            'TMP': 'Tempelhof',
+            'SCH': 'Schöneberg',
+            'WED': 'Wedding',
+            'SPA': 'Spandau'
+        };
+        
+        let session = null;
+        let connected = false;
+        let sensorData = {};
+        let totalEvents = 0;
+        let anomalyCount = 0;
+        let eventTimestamps = [];
+        
+        // ═══════════════════════════════════════════════════════════════
+        // HELPER FUNCTIONS
+        // ═══════════════════════════════════════════════════════════════
+        function getDistrictCode(sensorId) {
+            const parts = sensorId.split('-');
+            return parts.length >= 2 ? parts[1] : 'MIT';
+        }
+        
+        function getDistrictName(sensorId) {
+            const code = getDistrictCode(sensorId);
+            return DISTRICTS[code] || code;
+        }
+        
+        function getSensorNumber(sensorId) {
+            const parts = sensorId.split('-');
+            return parts.length >= 3 ? parts[2] : '???';
+        }
+        
+        // ═══════════════════════════════════════════════════════════════
+        // SENSOR CREATION & UPDATE
+        // ═══════════════════════════════════════════════════════════════
+        function createSensorCard(sensorId) {
+            const card = document.createElement('div');
+            card.className = 'sensor-card offline';
+            card.id = `card-${sensorId}`;
+            card.innerHTML = `
+                <div class="sensor-header">
+                    <div>
+                        <div class="sensor-name">${sensorId}</div>
+                        <div class="sensor-district">${getDistrictName(sensorId)}</div>
+                    </div>
+                    <span class="sensor-status status-offline" id="status-${sensorId}">Offline</span>
+                </div>
+                <div class="sensor-metrics">
+                    <div class="metric-box">
+                        <div class="metric-label">Throughput</div>
+                        <div class="metric-value" id="power-${sensorId}">--<span class="metric-unit">Mbps</span></div>
+                    </div>
+                    <div class="metric-box">
+                        <div class="metric-label">Temperature</div>
+                        <div class="metric-value" id="temp-${sensorId}">--<span class="metric-unit">°C</span></div>
+                    </div>
+                </div>
+                <div class="last-update" id="update-${sensorId}">No data</div>
+            `;
+            document.getElementById('sensorGrid').appendChild(card);
+        }
+        
+        function createMapMarker(sensorId) {
+            const marker = document.createElement('div');
+            marker.className = 'sensor-marker offline';
+            marker.id = `marker-${sensorId}`;
+            marker.innerHTML = `
+                <div class="marker-icon">⚡</div>
+                <div class="marker-label">${getSensorNumber(sensorId)}</div>
+            `;
+            
+            // Add to correct district
+            const districtCode = getDistrictCode(sensorId);
+            const container = document.getElementById(`sensors-${districtCode}`);
+            if (container) {
+                container.appendChild(marker);
+            }
+            
+            // Tooltip events
+            marker.addEventListener('mouseenter', (e) => showTooltip(e, sensorId));
+            marker.addEventListener('mouseleave', hideTooltip);
+        }
+        
+        function updateSensor(sensorId, data) {
+            // Create elements if new sensor
+            if (!sensorData[sensorId]) {
+                createSensorCard(sensorId);
+                createMapMarker(sensorId);
+            }
+            
+            const throughput = data.metrics.throughput.toFixed(0);
+            const temp = data.metrics.temperature.toFixed(1);
+            const isAnomaly = data.metrics.temperature > 60;
+            const status = isAnomaly ? 'anomaly' : 'normal';
+            
+            // Track anomalies
+            if (isAnomaly && (!sensorData[sensorId] || sensorData[sensorId].status !== 'anomaly')) {
+                anomalyCount++;
+            }
+            
+            // Update sensor data
+            sensorData[sensorId] = {
+                status: isAnomaly ? 'anomaly' : 'online',
+                power: parseFloat(throughput),
+                temp: parseFloat(temp),
+                lastUpdate: new Date()
+            };
+            
+            // Update card
+            const card = document.getElementById(`card-${sensorId}`);
+            const statusBadge = document.getElementById(`status-${sensorId}`);
+            card.className = `sensor-card ${sensorData[sensorId].status}`;
+            statusBadge.className = `sensor-status status-${sensorData[sensorId].status}`;
+            statusBadge.textContent = isAnomaly ? '⚠️ Anomaly' : '✓ Online';
+            
+            document.getElementById(`power-${sensorId}`).innerHTML = `${throughput}<span class="metric-unit">Mbps</span>`;
+            document.getElementById(`temp-${sensorId}`).innerHTML = `${temp}<span class="metric-unit">°C</span>`;
+            document.getElementById(`update-${sensorId}`).textContent = new Date().toLocaleTimeString('de-DE');
+            
+            // Update map marker
+            const marker = document.getElementById(`marker-${sensorId}`);
+            if (marker) {
+                marker.className = `sensor-marker ${sensorData[sensorId].status}`;
+            }
+            
+            // Update summary
+            updateSummary();
+        }
+        
+        // ═══════════════════════════════════════════════════════════════
+        // TOOLTIP
+        // ═══════════════════════════════════════════════════════════════
+        function showTooltip(e, sensorId) {
+            const data = sensorData[sensorId];
+            if (!data) return;
+            
+            const tooltip = document.getElementById('tooltip');
+            tooltip.innerHTML = `
+                <strong>${sensorId}</strong><br>
+                ${getDistrictName(sensorId)}<br>
+                Throughput: ${data.power} Mbps<br>
+                Temp: ${data.temp} °C
+            `;
+            tooltip.className = 'tooltip show';
+            
+            const rect = e.target.getBoundingClientRect();
+            const mapRect = document.getElementById('berlinMap').getBoundingClientRect();
+            tooltip.style.left = (rect.left - mapRect.left + 35) + 'px';
+            tooltip.style.top = (rect.top - mapRect.top - 10) + 'px';
+        }
+        
+        function hideTooltip() {
+            document.getElementById('tooltip').className = 'tooltip';
+        }
+        
+        // ═══════════════════════════════════════════════════════════════
+        // SUMMARY
+        // ═══════════════════════════════════════════════════════════════
+        function updateSummary() {
+            const activeSensors = Object.values(sensorData).filter(s => s.status !== 'offline').length;
+            const powers = Object.values(sensorData).filter(s => s.status !== 'offline').map(s => s.power);
+            const temps = Object.values(sensorData).filter(s => s.status !== 'offline').map(s => s.temp);
+            
+            document.getElementById('activeSensors').textContent = activeSensors;
+            document.getElementById('totalEvents').textContent = totalEvents;
+            document.getElementById('anomalyCount').textContent = anomalyCount;
+            
+            if (powers.length > 0) {
+                const avgPower = (powers.reduce((a, b) => a + b, 0) / powers.length).toFixed(1);
+                const avgTemp = (temps.reduce((a, b) => a + b, 0) / temps.length).toFixed(1);
+                document.getElementById('avgPower').textContent = avgPower;
+                document.getElementById('avgTemp').textContent = avgTemp;
+            }
+            
+            // Calculate event rate (events in last 10 seconds)
+            const now = Date.now();
+            eventTimestamps = eventTimestamps.filter(t => now - t < 10000);
+            const rate = (eventTimestamps.length / 10).toFixed(1);
+            document.getElementById('eventRate').textContent = rate;
+        }
+        
+        // ═══════════════════════════════════════════════════════════════
+        // LOG
+        // ═══════════════════════════════════════════════════════════════
+        function addLog(message, type = 'info') {
+            const log = document.getElementById('log');
+            const time = new Date().toLocaleTimeString('de-DE');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerHTML = `<span class="log-time">${time}</span> <span>${message}</span>`;
+            log.insertBefore(entry, log.firstChild);
+            
+            while (log.children.length > 100) {
+                log.removeChild(log.lastChild);
+            }
+        }
+        
+        // ═══════════════════════════════════════════════════════════════
+        // SOLACE SMF CONNECTION
+        // ═══════════════════════════════════════════════════════════════
+        function toggleConnection() {
+            if (connected) {
+                disconnect();
+            } else {
+                connect();
+            }
+        }
+        
+        function connect() {
+            // Check if Solace library is loaded
+            if (typeof solace === 'undefined') {
+                addLog('❌ Solace library not loaded. Please refresh the page.');
+                return;
+            }
+            
+            addLog('🔌 Connecting to Solace Cloud via SMF...');
+            
+            // Initialize Solace factory
+            const factoryProps = new solace.SolclientFactoryProperties();
+            factoryProps.profile = solace.SolclientFactoryProfiles.version10;
+            solace.SolclientFactory.init(factoryProps);
+            
+            // Create session properties
+            const sessionProps = new solace.SessionProperties();
+            sessionProps.url = CONFIG.url;
+            sessionProps.vpnName = CONFIG.vpn;
+            sessionProps.userName = CONFIG.username;
+            sessionProps.password = CONFIG.password;
+            sessionProps.clientName = `bs-grid-dashboard-${Date.now()}`;
+            sessionProps.connectRetries = 3;
+            sessionProps.reconnectRetries = 5;
+            
+            try {
+                session = solace.SolclientFactory.createSession(sessionProps);
+                
+                // Session event handlers
+                session.on(solace.SessionEventCode.UP_NOTICE, () => {
+                    connected = true;
+                    addLog('✅ Connected to Solace Cloud (SMF)');
+                    document.getElementById('connectionStatus').textContent = 'Connected (SMF)';
+                    document.getElementById('connectionStatus').className = 'status-badge status-connected';
+                    document.getElementById('connectBtn').textContent = 'Disconnect';
+                    
+                    // Subscribe with SMF wildcard syntax
+                    subscribe();
+                });
+                
+                session.on(solace.SessionEventCode.CONNECT_FAILED_ERROR, (sessionEvent) => {
+                    addLog(`❌ Connection failed: ${sessionEvent.infoStr}`);
+                    connected = false;
+                });
+                
+                session.on(solace.SessionEventCode.DISCONNECTED, () => {
+                    connected = false;
+                    document.getElementById('connectionStatus').textContent = 'Disconnected';
+                    document.getElementById('connectionStatus').className = 'status-badge status-disconnected';
+                    document.getElementById('connectBtn').textContent = 'Connect to Broker';
+                    addLog('🔌 Disconnected from broker');
+                });
+                
+                session.on(solace.SessionEventCode.SUBSCRIPTION_ERROR, (sessionEvent) => {
+                    addLog(`❌ Subscription error: ${sessionEvent.infoStr}`);
+                });
+                
+                session.on(solace.SessionEventCode.SUBSCRIPTION_OK, () => {
+                    addLog(`📡 Subscribed to: ${SUBSCRIPTION_TOPIC}`);
+                });
+                
+                // Message handler
+                session.on(solace.SessionEventCode.MESSAGE, (message) => {
+                    try {
+                        const payload = message.getBinaryAttachment();
+                        const data = JSON.parse(payload);
+                        const sensorId = data.sensorId;
+                        const topic = message.getDestination().getName();
+                        
+                        if (sensorId) {
+                            totalEvents++;
+                            eventTimestamps.push(Date.now());
+                            
+                            const isNew = !sensorData[sensorId];
+                            updateSensor(sensorId, data);
+                            
+                            const temp = data.metrics.temperature.toFixed(1);
+                            const status = data.metrics.temperature > 60 ? '⚠️' : '📊';
+                            
+                            if (isNew) {
+                                addLog(`🆕 New sensor: ${sensorId} (${getDistrictName(sensorId)})`);
+                            } else if (data.metrics.temperature > 60) {
+                                addLog(`${status} ${sensorId}: ${temp}°C - HIGH TEMP`);
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Parse error:', e);
+                        addLog(`⚠️ Parse error: ${e.message}`);
+                    }
+                });
+                
+                // Connect
+                session.connect();
+                
+            } catch (error) {
+                addLog(`❌ Error: ${error.message}`);
+            }
+        }
+        
+        function subscribe() {
+            try {
+                const topicSubscription = solace.SolclientFactory.createTopicDestination(SUBSCRIPTION_TOPIC);
+                session.subscribe(
+                    topicSubscription,
+                    true, // generate confirmation
+                    SUBSCRIPTION_TOPIC, // correlation key
+                    10000 // timeout
+                );
+            } catch (error) {
+                addLog(`❌ Subscribe error: ${error.message}`);
+            }
+        }
+        
+        function disconnect() {
+            if (session) {
+                try {
+                    session.disconnect();
+                } catch (error) {
+                    addLog(`⚠️ Disconnect error: ${error.message}`);
+                }
+                session = null;
+            }
+        }
+        
+        // Initialize on load
+        window.addEventListener('load', () => {
+            addLog('📊 Multi-Sensor Dashboard initialized (SMF Protocol)');
+            addLog(`🔗 Topic: ${SUBSCRIPTION_TOPIC}`);
+            addLog('💡 Sensors appear automatically in their Berlin districts');
+            
+            if (typeof solace === 'undefined') {
+                addLog('⚠️ Solace library loading...');
+                setTimeout(() => {
+                    if (typeof solace !== 'undefined') {
+                        addLog('✅ Solace library ready');
+                    } else {
+                        addLog('❌ Solace library failed to load. Check network.');
+                    }
+                }, 2000);
+            } else {
+                addLog('✅ Solace library ready');
+            }
+            
+            addLog('Click "Connect to Broker" to start monitoring');
+        });
+    </script>
+</body>
+</html>
