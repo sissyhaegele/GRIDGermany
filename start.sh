@@ -1,7 +1,12 @@
 #!/bin/bash
 # ═══════════════════════════════════════════════════════════════
-# BS GRID - Sensor Startup Script
-# Berliner Stadtwerke POC - 100 Sensors
+# GRIDGermany - Sensor Startup Script
+# Showcase: Berliner Stadtwerke (BS) - 100 Sensors
+# 
+# Features:
+# - Round-robin distribution across all districts
+# - Clean shutdown with proper MQTT disconnect
+# - Signal handling for Ctrl+C
 # ═══════════════════════════════════════════════════════════════
 
 cd ~/Projekte/GRIDGermany
@@ -12,7 +17,47 @@ export SOLACE_PORT="8883"
 export SOLACE_USERNAME="solace-cloud-client"
 export SOLACE_PASSWORD="iejmgp94muv7m5ahsfe9b50dvb"
 
-# All 100 Sensors - sorted for better district distribution
+# Track all child PIDs for clean shutdown
+CHILD_PIDS=()
+
+# ═══════════════════════════════════════════════════════════════
+# CLEAN SHUTDOWN HANDLER
+# ═══════════════════════════════════════════════════════════════
+cleanup() {
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "🛑 Stopping all sensors gracefully..."
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    
+    # Send SIGTERM to all child processes (allows graceful shutdown)
+    for pid in "${CHILD_PIDS[@]}"; do
+        if kill -0 "$pid" 2>/dev/null; then
+            kill -TERM "$pid" 2>/dev/null
+        fi
+    done
+    
+    # Wait a moment for graceful disconnect
+    echo "⏳ Waiting for clean MQTT disconnects..."
+    sleep 2
+    
+    # Force kill any remaining processes
+    for pid in "${CHILD_PIDS[@]}"; do
+        if kill -0 "$pid" 2>/dev/null; then
+            kill -9 "$pid" 2>/dev/null
+        fi
+    done
+    
+    echo "✅ All sensors stopped."
+    echo ""
+    exit 0
+}
+
+# Trap Ctrl+C (SIGINT) and SIGTERM
+trap cleanup SIGINT SIGTERM
+
+# ═══════════════════════════════════════════════════════════════
+# SENSOR LIST - Round Robin Order (matches fleet-control.html)
+# ═══════════════════════════════════════════════════════════════
 SENSORS=(
     # Round 1: 1 per district (10 sensors)
     "TRF-MIT-001" "TRF-KRZ-001" "TRF-CHA-001" "TRF-PRZ-001" "TRF-FRH-001"
@@ -57,19 +102,22 @@ SENSORS=(
     "TRF-MIT-044" "TRF-MIT-045" "TRF-MIT-046"
 )
 
+# ═══════════════════════════════════════════════════════════════
+# MAIN MENU
+# ═══════════════════════════════════════════════════════════════
 echo ""
 echo "╔══════════════════════════════════════════════════════════════╗"
-echo "║  ⚡ BS GRID - Sensor Starter                                 ║"
-echo "║  Berliner Stadtwerke - 100 Sensors Available                 ║"
+echo "║  ⚡ GRIDGermany - Sensor Starter                             ║"
+echo "║  Showcase: Berliner Stadtwerke - 100 Sensors                 ║"
 echo "╚══════════════════════════════════════════════════════════════╝"
 echo ""
-echo "Was möchtest du starten?"
+echo "Wie viele Sensoren starten?"
 echo ""
-echo "  1)   1 Sensor   (TRF-MIT-001)"
-echo "  3)   3 Sensoren (Mitte)"
-echo "  7)   7 Sensoren (Original POC)"
-echo "  10) 10 Sensoren"
-echo "  25) 25 Sensoren"
+echo "  1)   1 Sensor   (1 Bezirk)"
+echo "  3)   3 Sensoren (3 Bezirke)"
+echo "  7)   7 Sensoren (7 Bezirke)"
+echo "  10) 10 Sensoren (alle 10 Bezirke)"
+echo "  25) 25 Sensoren (gleichmäßig verteilt)"
 echo "  50) 50 Sensoren"
 echo "  100) Alle 100 Sensoren"
 echo ""
@@ -91,7 +139,9 @@ echo ""
 echo "🚀 Starte $count Sensor(en)..."
 echo ""
 
-# Start sensors
+# ═══════════════════════════════════════════════════════════════
+# START SENSORS
+# ═══════════════════════════════════════════════════════════════
 started=0
 for sensor in "${SENSORS[@]}"; do
     if [ $started -ge $count ]; then
@@ -100,6 +150,7 @@ for sensor in "${SENSORS[@]}"; do
     
     echo "  [$((started+1))/$count] $sensor"
     SENSOR_ID="$sensor" python3 remote_controlled_sensor.py &
+    CHILD_PIDS+=($!)
     
     started=$((started+1))
     
@@ -115,13 +166,16 @@ echo ""
 echo "✅ $count Sensor(en) gestartet!"
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "📡 Sensoren warten auf START Command von fleet-control.html"
+echo "📡 Sensoren warten auf START Command von Fleet Control"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 echo "⚡ Event Rate nach Start: $count events/second"
 echo ""
-echo "🛑 Press Ctrl+C to stop all sensors"
+echo "🛑 Press Ctrl+C to stop all sensors (clean disconnect)"
 echo ""
 
-# Wait for all background processes
+# ═══════════════════════════════════════════════════════════════
+# WAIT FOR CHILD PROCESSES
+# ═══════════════════════════════════════════════════════════════
+# This keeps the script running and allows the trap to work
 wait

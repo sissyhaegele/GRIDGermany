@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Grid Fleet Control - 100 Sensors</title>
+    <title>GRIDGermany Fleet Control - 100 Sensors</title>
     <script src="https://cdn.jsdelivr.net/npm/mqtt@5.3.4/dist/mqtt.min.js"></script>
     <style>
         * {
@@ -342,9 +342,9 @@
             password: 'iejmgp94muv7m5ahsfe9b50dvb'
         };
         
-        // All 100 Sensors
+        // All 100 Sensors - ROUND ROBIN order (matches start.sh exactly!)
         const SENSORS = [
-            // Round 1: 1 per district (10 sensors)
+            // Round 1: 1 per district (sensors 1-10)
             { id: 'TRF-MIT-001', name: 'Mitte 001', district: 'Mitte' },
             { id: 'TRF-KRZ-001', name: 'Kreuzberg 001', district: 'Kreuzberg' },
             { id: 'TRF-CHA-001', name: 'Charlottenburg 001', district: 'Charlottenburg' },
@@ -356,7 +356,7 @@
             { id: 'TRF-WED-001', name: 'Wedding 001', district: 'Wedding' },
             { id: 'TRF-SPA-001', name: 'Spandau 001', district: 'Spandau' },
             
-            // Round 2 (20 total)
+            // Round 2: 2 per district (sensors 11-20)
             { id: 'TRF-MIT-002', name: 'Mitte 002', district: 'Mitte' },
             { id: 'TRF-KRZ-002', name: 'Kreuzberg 002', district: 'Kreuzberg' },
             { id: 'TRF-CHA-002', name: 'Charlottenburg 002', district: 'Charlottenburg' },
@@ -368,7 +368,7 @@
             { id: 'TRF-WED-002', name: 'Wedding 002', district: 'Wedding' },
             { id: 'TRF-SPA-002', name: 'Spandau 002', district: 'Spandau' },
             
-            // Round 3 (30 total)
+            // Round 3: 3 per district (sensors 21-30)
             { id: 'TRF-MIT-003', name: 'Mitte 003', district: 'Mitte' },
             { id: 'TRF-KRZ-003', name: 'Kreuzberg 003', district: 'Kreuzberg' },
             { id: 'TRF-CHA-003', name: 'Charlottenburg 003', district: 'Charlottenburg' },
@@ -380,7 +380,7 @@
             { id: 'TRF-WED-003', name: 'Wedding 003', district: 'Wedding' },
             { id: 'TRF-SPA-003', name: 'Spandau 003', district: 'Spandau' },
             
-            // Round 4 (40 total)
+            // Round 4: 4 per district (sensors 31-40)
             { id: 'TRF-MIT-004', name: 'Mitte 004', district: 'Mitte' },
             { id: 'TRF-KRZ-004', name: 'Kreuzberg 004', district: 'Kreuzberg' },
             { id: 'TRF-CHA-004', name: 'Charlottenburg 004', district: 'Charlottenburg' },
@@ -392,7 +392,7 @@
             { id: 'TRF-WED-004', name: 'Wedding 004', district: 'Wedding' },
             { id: 'TRF-SPA-004', name: 'Spandau 004', district: 'Spandau' },
             
-            // Round 5 (50 total)
+            // Round 5: 5 per district (sensors 41-50)
             { id: 'TRF-MIT-005', name: 'Mitte 005', district: 'Mitte' },
             { id: 'TRF-KRZ-005', name: 'Kreuzberg 005', district: 'Kreuzberg' },
             { id: 'TRF-CHA-005', name: 'Charlottenburg 005', district: 'Charlottenburg' },
@@ -404,7 +404,7 @@
             { id: 'TRF-WED-005', name: 'Wedding 005', district: 'Wedding' },
             { id: 'TRF-SPA-005', name: 'Spandau 005', district: 'Spandau' },
             
-            // Round 6 (60 total)
+            // Round 6: 6 per district (sensors 51-60)
             { id: 'TRF-MIT-006', name: 'Mitte 006', district: 'Mitte' },
             { id: 'TRF-KRZ-006', name: 'Kreuzberg 006', district: 'Kreuzberg' },
             { id: 'TRF-CHA-006', name: 'Charlottenburg 006', district: 'Charlottenburg' },
@@ -416,7 +416,7 @@
             { id: 'TRF-WED-006', name: 'Wedding 006', district: 'Wedding' },
             { id: 'TRF-SPA-006', name: 'Spandau 006', district: 'Spandau' },
             
-            // Remaining sensors (larger districts)
+            // Round 7: larger districts continue (sensors 61-69)
             { id: 'TRF-MIT-007', name: 'Mitte 007', district: 'Mitte' },
             { id: 'TRF-KRZ-021', name: 'Kreuzberg 021', district: 'Kreuzberg' },
             { id: 'TRF-CHA-015', name: 'Charlottenburg 015', district: 'Charlottenburg' },
@@ -427,6 +427,7 @@
             { id: 'TRF-SCH-007', name: 'Schöneberg 007', district: 'Schöneberg' },
             { id: 'TRF-WED-007', name: 'Wedding 007', district: 'Wedding' },
             
+            // Round 8: (sensors 70-77)
             { id: 'TRF-MIT-008', name: 'Mitte 008', district: 'Mitte' },
             { id: 'TRF-KRZ-022', name: 'Kreuzberg 022', district: 'Kreuzberg' },
             { id: 'TRF-CHA-016', name: 'Charlottenburg 016', district: 'Charlottenburg' },
@@ -436,6 +437,7 @@
             { id: 'TRF-TMP-008', name: 'Tempelhof 008', district: 'Tempelhof' },
             { id: 'TRF-SCH-008', name: 'Schöneberg 008', district: 'Schöneberg' },
             
+            // Round 9: (sensors 78-83)
             { id: 'TRF-MIT-009', name: 'Mitte 009', district: 'Mitte' },
             { id: 'TRF-KRZ-023', name: 'Kreuzberg 023', district: 'Kreuzberg' },
             { id: 'TRF-CHA-017', name: 'Charlottenburg 017', district: 'Charlottenburg' },
@@ -443,6 +445,7 @@
             { id: 'TRF-FRH-009', name: 'Friedrichshain 009', district: 'Friedrichshain' },
             { id: 'TRF-NEU-009', name: 'Neukölln 009', district: 'Neukölln' },
             
+            // Round 10: (sensors 84-89)
             { id: 'TRF-MIT-010', name: 'Mitte 010', district: 'Mitte' },
             { id: 'TRF-KRZ-024', name: 'Kreuzberg 024', district: 'Kreuzberg' },
             { id: 'TRF-CHA-018', name: 'Charlottenburg 018', district: 'Charlottenburg' },
@@ -450,16 +453,15 @@
             { id: 'TRF-FRH-010', name: 'Friedrichshain 010', district: 'Friedrichshain' },
             { id: 'TRF-NEU-010', name: 'Neukölln 010', district: 'Neukölln' },
             
+            // Remaining larger district sensors (90-100)
             { id: 'TRF-MIT-042', name: 'Mitte 042', district: 'Mitte' },
             { id: 'TRF-KRZ-025', name: 'Kreuzberg 025', district: 'Kreuzberg' },
             { id: 'TRF-CHA-019', name: 'Charlottenburg 019', district: 'Charlottenburg' },
             { id: 'TRF-PRZ-035', name: 'Prenzlauer Berg 035', district: 'Prenzlauer Berg' },
-            
             { id: 'TRF-MIT-043', name: 'Mitte 043', district: 'Mitte' },
             { id: 'TRF-KRZ-026', name: 'Kreuzberg 026', district: 'Kreuzberg' },
             { id: 'TRF-CHA-020', name: 'Charlottenburg 020', district: 'Charlottenburg' },
             { id: 'TRF-PRZ-036', name: 'Prenzlauer Berg 036', district: 'Prenzlauer Berg' },
-            
             { id: 'TRF-MIT-044', name: 'Mitte 044', district: 'Mitte' },
             { id: 'TRF-MIT-045', name: 'Mitte 045', district: 'Mitte' },
             { id: 'TRF-MIT-046', name: 'Mitte 046', district: 'Mitte' },
@@ -600,7 +602,7 @@
         function connect() {
             addLog('🔌 Connecting to Solace (MQTT)...');
             
-            const url = `wss://${CONFIG.broker}:${CONFIG.port}`;
+            const url = `wss://${CONFIG.broker}:${CONFIG.port}/mqtt`;
             client = mqtt.connect(url, {
                 clientId: `fleet-control-${Date.now()}`,
                 username: CONFIG.username,

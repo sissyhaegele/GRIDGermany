@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """
-BS GRID - Remote Controlled Sensor
-Simuliert einen Transformator-Sensor mit erweiterten Metriken
-Empfängt Befehle über MQTT (control/sensor/{id}/command)
-Sendet Daten über MQTT an Topic: bs/{district}/mv/transformer/powerline/statusUpdated/v1/{sensorId}
+GRIDGermany - Remote Controlled Sensor
+Showcase: Berliner Stadtwerke (BS)
 
-Metriken:
-- temperature: Betriebstemperatur (°C)
-- throughput: Verbindungsgeschwindigkeit (Mbps)
-- latency: Ping/RTT (ms)
-- packetLoss: Paketverlustrate (%)
-- uptime: Verfügbarkeit seit Start (%)
+Simuliert einen Transformator-Sensor mit Grid-KPIs
+- Empfängt Befehle über MQTT (control/sensor/{id}/command)
+- Sendet Daten über MQTT an Topic: bs/{district}/mv/transformer/powerline/statusUpdated/v1/{sensorId}
+
+Verbesserungen v2:
+- Clean Session für saubere Reconnects
+- Last Will & Testament für automatische Offline-Erkennung
+- Graceful Shutdown mit Signal Handling
+- Verbesserte Reconnection-Logik
 """
 
 import paho.mqtt.client as mqtt
@@ -20,13 +21,14 @@ import random
 import threading
 import os
 import sys
+import signal
 from datetime import datetime
 
 # ============================================
-# CONFIGURATION
+# CONFIGURATION (neue Credentials!)
 # ============================================
 
-# Broker settings
+# Broker settings - NEUE SERVICE ID
 BROKER = os.getenv('SOLACE_HOST', 'mr-connection-gu0w0pjgchg.messaging.solace.cloud')
 PORT = int(os.getenv('SOLACE_PORT', 8883))
 USERNAME = os.getenv('SOLACE_USERNAME', 'solace-cloud-client')
@@ -36,7 +38,7 @@ PASSWORD = os.getenv('SOLACE_PASSWORD', 'iejmgp94muv7m5ahsfe9b50dvb')
 SENSOR_ID = os.getenv('SENSOR_ID', 'TRF-MIT-042')
 DISTRICT = os.getenv('DISTRICT', 'mitte')
 
-# Location data per district (example coordinates)
+# Location data per district
 DISTRICT_LOCATIONS = {
     'mitte': {'lat': 52.5200, 'lon': 13.4050, 'address': 'Alexanderplatz'},
     'kreuzberg': {'lat': 52.4970, 'lon': 13.4070, 'address': 'Kottbusser Tor'},
@@ -66,18 +68,16 @@ class RemoteControlledSensor:
         self.start_time = None
         self.total_messages = 0
         self.failed_messages = 0
+        self.shutdown_requested = False
         
         # Simulated sensor values
         self.temperature = random.uniform(35, 50)
-        self.throughput = random.uniform(800, 1000)
-        self.latency = random.uniform(5, 20)
-        self.packet_loss = random.uniform(0, 0.5)
         
         # Grid KPIs
-        self.voltage = random.uniform(228, 232)      # Normal: 230V ±2%
-        self.frequency = random.uniform(49.98, 50.02)  # Normal: 50.00 Hz
-        self.load = random.uniform(50, 70)           # Normal: 50-70%
-        self.power = random.uniform(80, 120)         # kW
+        self.voltage = random.uniform(228, 232)
+        self.frequency = random.uniform(49.98, 50.02)
+        self.load = random.uniform(50, 70)
+        self.power = random.uniform(80, 120)
         
         # Topics
         self.data_topic = f"bs/{self.district}/mv/transformer/powerline/statusUpdated/v1/{self.sensor_id}"
@@ -93,10 +93,20 @@ class RemoteControlledSensor:
             'address': loc['address']
         }
         
+        # Setup signal handlers for graceful shutdown
+        signal.signal(signal.SIGINT, self._signal_handler)
+        signal.signal(signal.SIGTERM, self._signal_handler)
+    
+    def _signal_handler(self, signum, frame):
+        """Handle shutdown signals gracefully"""
+        print(f"\n\n🛑 Received signal {signum}, shutting down gracefully...")
+        self.shutdown_requested = True
+        self.running = False
+    
     def connect(self):
         """Connect to Solace broker via MQTT"""
         print(f"╔{'═'*60}╗")
-        print(f"║  BS GRID Sensor - {self.sensor_id:<40} ║")
+        print(f"║  GRIDGermany Sensor - {self.sensor_id:<36} ║")
         print(f"╚{'═'*60}╝")
         print()
         print(f"📍 District: {self.district.title()}")
@@ -105,17 +115,38 @@ class RemoteControlledSensor:
         print(f"📥 Command Topic: {self.command_topic}")
         print()
         
-        # Create MQTT client
-        self.client = mqtt.Client(
-            callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
-            client_id=f"sensor-{self.sensor_id}-{int(time.time())}"
-        )
+        # Create MQTT client with CLEAN SESSION
+        client_id = f"sensor-{self.sensor_id}-{int(time.time())}"
+        
+        try:
+            # Try new paho-mqtt API (v2.x)
+            self.client = mqtt.Client(
+                callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
+                client_id=client_id,
+                clean_session=True  # WICHTIG: Clean Session!
+            )
+        except (AttributeError, TypeError):
+            # Fallback for older paho-mqtt (v1.x)
+            self.client = mqtt.Client(
+                client_id=client_id,
+                clean_session=True
+            )
+        
         self.client.username_pw_set(USERNAME, PASSWORD)
         
         # Enable TLS
         import ssl
         self.client.tls_set(cert_reqs=ssl.CERT_NONE)
         self.client.tls_insecure_set(True)
+        
+        # Last Will & Testament - wird automatisch gesendet wenn Verbindung abbricht
+        lwt_payload = json.dumps({
+            'sensorId': self.sensor_id,
+            'status': 'offline',
+            'timestamp': datetime.utcnow().isoformat() + 'Z',
+            'reason': 'unexpected_disconnect'
+        })
+        self.client.will_set(self.status_topic, lwt_payload, qos=1, retain=False)
         
         # Callbacks
         self.client.on_connect = self._on_connect
@@ -124,7 +155,7 @@ class RemoteControlledSensor:
         
         try:
             print("🔌 Connecting to broker...")
-            self.client.connect(BROKER, PORT, 60)
+            self.client.connect(BROKER, PORT, keepalive=30)
             self.client.loop_start()
             
             # Wait for connection
@@ -143,25 +174,52 @@ class RemoteControlledSensor:
             print(f"❌ Connection error: {e}")
             return False
     
-    def _on_connect(self, client, userdata, flags, rc, properties=None):
-        """Called when connected to broker"""
-        if rc == 0:
+    def _on_connect(self, client, userdata, flags, rc, *args):
+        """Called when connected to broker - compatible with paho v1 and v2"""
+        # Handle different paho-mqtt versions
+        if isinstance(rc, int):
+            reason_code = rc
+        else:
+            # paho v2 returns ReasonCode object
+            reason_code = rc.value if hasattr(rc, 'value') else int(rc)
+        
+        if reason_code == 0:
             self.connected = True
             print("✅ Connected to Solace broker!")
             
-            # Subscribe to command topic using MQTT wildcard
+            # Subscribe to command topic
             client.subscribe(self.command_topic, qos=1)
             print(f"📥 Subscribed to: {self.command_topic}")
             
             # Publish initial status
             self._publish_status('connected')
         else:
-            print(f"❌ Connection failed with code: {rc}")
+            error_messages = {
+                1: "Incorrect protocol version",
+                2: "Invalid client identifier",
+                3: "Server unavailable",
+                4: "Bad username or password",
+                5: "Not authorized"
+            }
+            error_msg = error_messages.get(reason_code, f"Unknown error ({reason_code})")
+            print(f"❌ Connection failed: {error_msg}")
     
-    def _on_disconnect(self, client, userdata, rc, properties=None):
-        """Called when disconnected"""
+    def _on_disconnect(self, client, userdata, *args):
+        """Called when disconnected - compatible with paho v1 and v2"""
         self.connected = False
-        print(f"🔌 Disconnected (rc={rc})")
+        
+        # Extract reason code from args (different between paho versions)
+        rc = 0
+        if args:
+            rc = args[0] if isinstance(args[0], int) else getattr(args[0], 'value', 0)
+        
+        if self.shutdown_requested:
+            print("🔌 Disconnected (clean shutdown)")
+        elif rc == 0:
+            print("🔌 Disconnected (normal)")
+        else:
+            print(f"🔌 Disconnected unexpectedly (rc={rc})")
+            # Reconnection wird automatisch von loop_start() versucht
     
     def _on_message(self, client, userdata, message):
         """Handle incoming command messages"""
@@ -241,7 +299,7 @@ class RemoteControlledSensor:
         print("\n📊 Starting data transmission...")
         print("-" * 50)
         
-        while self.running:
+        while self.running and not self.shutdown_requested:
             # Check if paused
             if self.paused:
                 if time.time() < self.pause_until:
@@ -251,6 +309,12 @@ class RemoteControlledSensor:
                     self.paused = False
                     print("▶️ Resuming after pause")
                     self._publish_status('running')
+            
+            # Check connection
+            if not self.connected:
+                print("⚠️ Not connected, waiting...")
+                time.sleep(2)
+                continue
             
             # Generate and send data
             self._send_sensor_data()
@@ -262,55 +326,45 @@ class RemoteControlledSensor:
     
     def _send_sensor_data(self):
         """Generate and publish sensor data"""
-        # ═══════════════════════════════════════════════════════════════
-        # GRID KPIs - Normal operation with 2-second anomaly duration
-        # ═══════════════════════════════════════════════════════════════
-        
-        # Check if we're in anomaly cooldown (2 ticks = 2 seconds)
+        # Check if we're in anomaly cooldown
         if hasattr(self, 'anomaly_ticks') and self.anomaly_ticks > 0:
             self.anomaly_ticks -= 1
             is_anomaly = True
         else:
-            # Voltage: Normal 230V ±2% - recover if out of range
+            # Normal value drift with recovery
             if self.voltage < 220 or self.voltage > 240:
-                self.voltage = random.uniform(228, 232)  # Recovery
+                self.voltage = random.uniform(228, 232)
             else:
                 self.voltage += random.uniform(-0.5, 0.5)
             self.voltage = max(210, min(250, self.voltage))
             
-            # Frequency: Normal 50.00 Hz ±0.02 - recover if out of range
             if self.frequency < 49.95 or self.frequency > 50.05:
-                self.frequency = random.uniform(49.98, 50.02)  # Recovery
+                self.frequency = random.uniform(49.98, 50.02)
             else:
                 self.frequency += random.uniform(-0.01, 0.01)
             self.frequency = max(49.80, min(50.20, self.frequency))
             
-            # Load: Normal 50-70% - recover if too high
             if self.load > 85:
-                self.load = random.uniform(50, 70)  # Recovery
+                self.load = random.uniform(50, 70)
             else:
                 self.load += random.uniform(-2, 2)
             self.load = max(30, min(100, self.load))
             
-            # Power: Based on load
             self.power = 50 + (self.load * 1.5) + random.uniform(-5, 5)
             
-            # Temperature: Normal 40-55°C - recover if too high
             if self.temperature > 60:
-                self.temperature = random.uniform(40, 55)  # Recovery
+                self.temperature = random.uniform(40, 55)
             else:
                 self.temperature += random.uniform(-0.5, 0.5)
             self.temperature = max(30, min(85, self.temperature))
             
-            # ═══════════════════════════════════════════════════════════════
-            # ANOMALY SIMULATION - ~3% chance of grid stress
-            # ═══════════════════════════════════════════════════════════════
+            # Anomaly simulation (~3% chance)
             is_anomaly = False
             
             if random.random() < 0.03:
                 anomaly_type = random.choice(['voltage', 'frequency', 'load', 'temperature'])
                 is_anomaly = True
-                self.anomaly_ticks = 2  # Hold anomaly for 2 seconds
+                self.anomaly_ticks = 2
                 
                 if anomaly_type == 'voltage':
                     self.voltage = random.choice([random.uniform(210, 218), random.uniform(242, 250)])
@@ -371,23 +425,36 @@ class RemoteControlledSensor:
             self.failed_messages += 1
             print(f"❌ Publish error: {e}")
     
+    def disconnect(self):
+        """Clean disconnect from broker"""
+        print("\n🔌 Disconnecting...")
+        
+        # Publish offline status
+        if self.connected:
+            self._publish_status('offline')
+            time.sleep(0.3)  # Give time for message to send
+        
+        # Stop and disconnect
+        if self.client:
+            self.client.loop_stop()
+            self.client.disconnect()
+        
+        print("✅ Disconnected cleanly")
+    
     def run(self):
         """Main run loop - wait for commands"""
         print("\n⏳ Waiting for commands...")
-        print("   Send 'start' to control/sensor/{}/command".format(self.sensor_id))
+        print(f"   Send 'start' to control/sensor/{self.sensor_id}/command")
         print()
         
         try:
-            while True:
-                time.sleep(1)
+            while not self.shutdown_requested:
+                time.sleep(0.5)
         except KeyboardInterrupt:
-            print("\n\n🛑 Shutting down...")
+            pass
+        finally:
             self.running = False
-            self._publish_status('disconnected')
-            time.sleep(0.5)
-            if self.client:
-                self.client.loop_stop()
-                self.client.disconnect()
+            self.disconnect()
             print("👋 Goodbye!")
 
 
