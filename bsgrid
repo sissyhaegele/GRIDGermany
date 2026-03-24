@@ -1,0 +1,97 @@
+#!/bin/bash
+# ============================================
+# BS GRID - Interactive Sensor Launcher
+# ============================================
+# Usage: ./bsgrid
+# ============================================
+
+GREEN='\033[0;32m'
+BLUE='\033[0;34m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+DISTRICTS=("MIT" "KRZ" "CHA" "PRZ" "FRH" "NEU" "TMP" "SCH" "WED" "SPA")
+DISTRICT_COUNT=${#DISTRICTS[@]}
+PIDS=()
+
+cleanup() {
+    echo ""
+    echo -e "${YELLOW}🛑 Stopping all sensors...${NC}"
+    for pid in "${PIDS[@]}"; do
+        kill -TERM "$pid" 2>/dev/null
+    done
+    wait 2>/dev/null
+    echo -e "${GREEN}✅ All sensors stopped${NC}"
+    exit 0
+}
+
+trap cleanup SIGINT SIGTERM
+
+# Header
+clear
+echo ""
+echo -e "${BLUE}╔════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${BLUE}║                                                            ║${NC}"
+echo -e "${BLUE}║              ⚡ BS GRID - Sensor Launcher ⚡               ║${NC}"
+echo -e "${BLUE}║                                                            ║${NC}"
+echo -e "${BLUE}║          Berliner Stadtwerke • Grid Monitoring             ║${NC}"
+echo -e "${BLUE}║                                                            ║${NC}"
+echo -e "${BLUE}╚════════════════════════════════════════════════════════════╝${NC}"
+echo ""
+
+# Ask for sensor count
+echo -e "${CYAN}Wie viele Sensoren starten?${NC}"
+echo ""
+echo -e "  [1] 7 Sensoren   (Demo)"
+echo -e "  [2] 10 Sensoren"
+echo -e "  [3] 25 Sensoren"
+echo -e "  [4] 50 Sensoren  ${GREEN}(Standard)${NC}"
+echo -e "  [5] 100 Sensoren (Max)"
+echo ""
+read -p "Auswahl [1-5, Enter=50]: " choice
+
+# Map choice to count
+case $choice in
+    1) SENSOR_COUNT=7 ;;
+    2) SENSOR_COUNT=10 ;;
+    3) SENSOR_COUNT=25 ;;
+    5) SENSOR_COUNT=100 ;;
+    *) SENSOR_COUNT=50 ;;  # Default
+esac
+
+echo ""
+echo -e "${GREEN}▶ Starte $SENSOR_COUNT Sensoren...${NC}"
+echo ""
+
+# Start sensors
+for i in $(seq 1 $SENSOR_COUNT); do
+    DISTRICT_INDEX=$(( (i - 1) % DISTRICT_COUNT ))
+    DISTRICT=${DISTRICTS[$DISTRICT_INDEX]}
+    SENSOR_ID="TRF-${DISTRICT}-$(printf '%03d' $i)"
+    
+    python3 remote_controlled_sensor.py "$SENSOR_ID" --autostart > /dev/null 2>&1 &
+    PIDS+=($!)
+    
+    # Progress indicator
+    if (( i % 10 == 0 )); then
+        echo -e "  ${GREEN}✓${NC} $i Sensoren gestartet..."
+    fi
+    
+    sleep 0.15
+done
+
+echo ""
+echo -e "${GREEN}════════════════════════════════════════════════════════════${NC}"
+echo -e "${GREEN}✅ $SENSOR_COUNT Sensoren laufen${NC}"
+echo -e "${GREEN}════════════════════════════════════════════════════════════${NC}"
+echo ""
+echo -e "📈 Throughput: ${CYAN}$SENSOR_COUNT events/sec${NC}"
+echo -e "📡 Topic:      ${CYAN}bs/*/mv/transformer/powerline/statusUpdated/v1/*${NC}"
+echo -e "🌐 Dashboard:  ${CYAN}dashboards/dashboard-fiori.html${NC}"
+echo ""
+echo -e "${YELLOW}Ctrl+C zum Beenden${NC}"
+echo ""
+
+# Wait
+wait

@@ -464,9 +464,17 @@ class RemoteControlledSensor:
 
 def main():
     """Main entry point"""
-    # Allow command line override
-    sensor_id = sys.argv[1] if len(sys.argv) > 1 else SENSOR_ID
-    district = sys.argv[2] if len(sys.argv) > 2 else DISTRICT
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='BS GRID Remote Controlled Sensor')
+    parser.add_argument('sensor_id', nargs='?', default=SENSOR_ID, help='Sensor ID (e.g., TRF-MIT-001)')
+    parser.add_argument('district', nargs='?', default=DISTRICT, help='District name')
+    parser.add_argument('--autostart', action='store_true', help='Start sending data immediately without waiting for commands')
+    
+    args = parser.parse_args()
+    
+    sensor_id = args.sensor_id
+    district = args.district
     
     # Extract district from sensor ID if not provided
     if district == DISTRICT and '-' in sensor_id:
@@ -488,7 +496,16 @@ def main():
     sensor = RemoteControlledSensor(sensor_id, district)
     
     if sensor.connect():
-        sensor.run()
+        if args.autostart:
+            # Start immediately without waiting for commands
+            print("\n🚀 AUTOSTART MODE - Starting immediately...")
+            sensor.running = True
+            sensor.start_time = time.time()
+            sensor._publish_status('running')
+            sensor._send_data_loop()
+            sensor.disconnect()
+        else:
+            sensor.run()
     else:
         print("❌ Failed to start sensor")
         sys.exit(1)

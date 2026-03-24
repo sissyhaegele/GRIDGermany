@@ -1,123 +1,92 @@
-# GRIDGermany - SAP BTP Deployment
+# ⚡ BS GRID - Berliner Stadtwerke Grid Monitoring
 
-**Plattform:** GRIDGermany - Echtzeit Netzüberwachung  
-**Showcase:** Berliner Stadtwerke (BS) - Kritische Infrastruktur Monitoring
+Real-time power grid monitoring system using SAP Advanced Event Mesh (Solace).
 
-## Architektur
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                        SAP BTP                                   │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │                    App Router                              │  │
-│  │              (Authentication & Routing)                    │  │
-│  └───────────────────────────────────────────────────────────┘  │
-│              │                              │                    │
-│              ▼                              ▼                    │
-│  ┌─────────────────────┐      ┌─────────────────────────────┐   │
-│  │     Dashboard       │      │      Fleet Control          │   │
-│  │   (SMF/WebSocket)   │      │    (MQTT/WebSocket)         │   │
-│  │   Scope: viewer     │      │    Scope: operator          │   │
-│  └─────────────────────┘      └─────────────────────────────┘   │
-│              │                              │                    │
-│              └──────────────┬───────────────┘                    │
-│                             ▼                                    │
-│  ┌───────────────────────────────────────────────────────────┐  │
-│  │              Advanced Event Mesh (Solace)                  │  │
-│  │                   germangrid_berlin                        │  │
-│  └───────────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-## Voraussetzungen
-
-- SAP BTP Trial oder Enterprise Account
-- Cloud Foundry CLI (`cf`)
-- MTA Build Tool (`mbt`)
-- Node.js 18+
-
-## Schnellstart
+## 🚀 Quick Start
 
 ```bash
-# 1. Solace Library herunterladen
-./scripts/download-solclient.sh
+# Start sensors
+./bsgrid
+# → Wähle Anzahl (7/10/25/50/100)
+# → Enter für 50 (Standard)
 
-# 2. MTA bauen
-mbt build
+# Open dashboard (neuer Tab)
+open dashboards/dashboard-fiori.html   # SAP Fiori Style
+# oder
+open dashboards/dashboard-multi.html   # Original Style
 
-# 3. Nach BTP deployen
-cf login -a <api-endpoint>
-cf deploy mta_archives/grid-germany_1.0.0.mtar
+# Stop sensors
+Ctrl+C
 ```
 
-## Projektstruktur
+## 📁 Project Structure
 
 ```
-grid-germany/
-├── mta.yaml                    # Multi-Target Application Descriptor
-├── xs-security.json            # XSUAA Authorization
-├── app/
-│   ├── dashboard/              # Echtzeit-Visualisierung (SMF)
-│   │   ├── webapp/
-│   │   │   ├── index.html
-│   │   │   ├── solclient-full.js
-│   │   │   └── manifest.json
-│   │   ├── package.json
-│   │   └── xs-app.json
-│   └── fleet-control/          # Sensor-Steuerung (MQTT)
-│       ├── webapp/
-│       │   ├── index.html
-│       │   └── manifest.json
-│       ├── package.json
-│       └── xs-app.json
-├── approuter/                  # Central Application Router
-│   ├── package.json
-│   └── xs-app.json
-└── scripts/
-    └── download-solclient.sh
+GRIDGermany/
+├── bsgrid                      # Sensor Starter Script
+├── remote_controlled_sensor.py # Sensor Simulation
+├── solclient-full.js           # Solace JavaScript Library
+│
+├── dashboards/
+│   ├── dashboard-fiori.html    # SAP Fiori Style Dashboard
+│   ├── dashboard-multi.html    # Original Dashboard
+│   └── fleet-control.html      # Sensor Management UI
+│
+├── scripts/
+│   ├── start.sh                # Alternative Start Script
+│   └── stop-sensors.sh         # Stop All Sensors
+│
+├── docs/
+│   ├── BS_GRID_POC_DOKUMENTATION.md
+│   └── SETUP_COMMANDS.sh
+│
+├── btp-deployment/             # SAP BTP Deployment
+│   ├── mta.yaml
+│   ├── xs-security.json
+│   ├── deploy.sh
+│   ├── app/
+│   └── approuter/
+│
+└── archive/                    # Old files
 ```
 
-## BTP Services
+## 🎯 Features
 
-| Service | Plan | Zweck |
-|---------|------|-------|
-| html5-apps-repo | app-host | HTML5 App Hosting |
-| html5-apps-repo | app-runtime | Runtime für Apps |
-| xsuaa | application | Authentication |
-| destination | lite | AEM Connectivity |
+- **Scalable Sensors**: 7 / 10 / 25 / 50 / 100 sensors
+- **Real-time KPIs**: Voltage, Frequency, Load, Temperature, Power
+- **Berlin Map**: 10 districts with sensor locations
+- **Anomaly Detection**: 3% chance, visual alerts
+- **Two Dashboards**: Original + SAP Fiori Style
 
-## Rollen
-
-| Rolle | Berechtigungen |
-|-------|----------------|
-| GRIDGermany_Viewer | Dashboard Zugriff |
-| GRIDGermany_Operator | Fleet Control + Dashboard |
-| GRIDGermany_Admin | Voller Zugriff |
-
-## Solace AEM Konfiguration
+## 📡 Architecture
 
 ```
-Host:     mr-connection-gu0w0pjgchg.messaging.solace.cloud
-VPN:      germangrid_berlin
-SMF Port: 443 (Dashboard)
-MQTT Port: 8443 (Fleet Control)
+[Sensors] → MQTT:8883 → [SAP AEM / Solace] → SMF:443 → [Dashboard]
 ```
 
-## Lokale Entwicklung
+| Component | Protocol | Port |
+|-----------|----------|------|
+| Sensors   | MQTT/TLS | 8883 |
+| Dashboard | SMF/WSS  | 443  |
 
-```bash
-# HTTP Server für lokales Testen
-cd app/dashboard/webapp && python3 -m http.server 8080
-cd app/fleet-control/webapp && python3 -m http.server 8081
+## 🔧 Configuration
+
+Broker credentials in `remote_controlled_sensor.py` and dashboards:
+
+```python
+BROKER = 'mr-connection-gu0w0pjgchg.messaging.solace.cloud'
+VPN = 'germangrid_berlin'
 ```
 
-## Nächste Schritte
+## 📊 KPIs
 
-1. **SAP Integration Suite**: Event Flows für S/4HANA Integration
-2. **SAP Business Data Cloud**: Event Persistence
-3. **SAP Analytics Cloud**: Predictive Maintenance Dashboards
-4. **SAP AI Core**: ML-basierte Anomalie-Erkennung
+| KPI | Normal | Warning | Critical |
+|-----|--------|---------|----------|
+| Frequency | 49.98-50.02 Hz | <49.95 / >50.05 | <49.80 / >50.20 |
+| Voltage | 228-232 V | <225 / >235 | <220 / >240 |
+| Load | 50-70% | >85% | >95% |
+| Temperature | 35-50°C | >60°C | >75°C |
 
 ---
 
-*Projekt: GRIDGermany - Berliner Stadtwerke Netzüberwachung*
+**Built for Berliner Stadtwerke • SAP Advanced Event Mesh • Real-Time Grid Monitoring**

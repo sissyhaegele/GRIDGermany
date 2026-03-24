@@ -1,0 +1,1348 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BS GRID Dashboard - SAP Fiori Style</title>
+    <script src="solclient-full.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            /* SAP Fiori Color Palette */
+            --sapShellColor: #354a5f;
+            --sapBrandColor: #0a6ed1;
+            --sapHighlightColor: #0854a0;
+            --sapSuccessColor: #107e3e;
+            --sapWarningColor: #e9730c;
+            --sapErrorColor: #bb0000;
+            --sapNeutralColor: #6a6d70;
+            --sapBackgroundColor: #f7f7f7;
+            --sapBaseColor: #ffffff;
+            --sapTextColor: #32363a;
+            --sapBorderColor: #d9d9d9;
+            --sapTileBackground: #ffffff;
+            --sapFontFamily: '72', 'Source Sans Pro', Arial, sans-serif;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: var(--sapFontFamily);
+            background: var(--sapBackgroundColor);
+            color: var(--sapTextColor);
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        
+        /* SAP Shell Header */
+        .sap-shell-header {
+            background: var(--sapShellColor);
+            height: 44px;
+            display: flex;
+            align-items: center;
+            padding: 0 16px;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+        
+        .shell-logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .shell-logo svg {
+            height: 24px;
+            width: auto;
+        }
+        
+        .shell-title {
+            color: #ffffff;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        
+        .shell-spacer {
+            flex: 1;
+        }
+        
+        .shell-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        /* Object Page Header */
+        .object-page-header {
+            background: var(--sapBaseColor);
+            border-bottom: 1px solid var(--sapBorderColor);
+            padding: 16px 24px;
+        }
+        
+        .object-header-content {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        
+        .object-icon {
+            width: 48px;
+            height: 48px;
+            background: var(--sapBrandColor);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 24px;
+        }
+        
+        .object-title-area {
+            flex: 1;
+        }
+        
+        .object-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--sapTextColor);
+            margin-bottom: 4px;
+        }
+        
+        .object-subtitle {
+            font-size: 13px;
+            color: var(--sapNeutralColor);
+        }
+        
+        .object-status {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        
+        /* Status Badge */
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .status-badge.success {
+            background: #f1fdf6;
+            color: var(--sapSuccessColor);
+            border: 1px solid var(--sapSuccessColor);
+        }
+        
+        .status-badge.error {
+            background: #fff3f3;
+            color: var(--sapErrorColor);
+            border: 1px solid var(--sapErrorColor);
+        }
+        
+        .status-badge.neutral {
+            background: #f5f5f5;
+            color: var(--sapNeutralColor);
+            border: 1px solid var(--sapBorderColor);
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+        
+        /* Fiori Button */
+        .sap-button {
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: all 0.15s ease;
+        }
+        
+        .sap-button.emphasized {
+            background: var(--sapBrandColor);
+            color: white;
+        }
+        
+        .sap-button.emphasized:hover {
+            background: var(--sapHighlightColor);
+        }
+        
+        .sap-button.ghost {
+            background: transparent;
+            color: var(--sapBrandColor);
+            border: 1px solid var(--sapBrandColor);
+        }
+        
+        /* Main Content Area */
+        .page-content {
+            padding: 16px 24px;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+        
+        /* Section Title */
+        .section-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--sapTextColor);
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid var(--sapBrandColor);
+            display: inline-block;
+        }
+        
+        /* KPI Tiles */
+        .kpi-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+        
+        .kpi-tile {
+            background: var(--sapTileBackground);
+            border-radius: 8px;
+            padding: 16px;
+            border: 1px solid var(--sapBorderColor);
+            transition: box-shadow 0.15s ease;
+        }
+        
+        .kpi-tile:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+        
+        .kpi-tile {
+            position: relative;
+            cursor: help;
+        }
+        
+        .kpi-tooltip {
+            display: none;
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--sapShellColor);
+            color: white;
+            padding: 12px 16px;
+            border-radius: 4px;
+            font-size: 12px;
+            line-height: 1.5;
+            width: 280px;
+            z-index: 1000;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+            margin-bottom: 8px;
+        }
+        
+        .kpi-tooltip::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 8px solid transparent;
+            border-top-color: var(--sapShellColor);
+        }
+        
+        .kpi-tile:hover .kpi-tooltip {
+            display: block;
+        }
+        
+        .kpi-tooltip-title {
+            font-weight: 600;
+            margin-bottom: 6px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .kpi-tooltip-range {
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            font-size: 11px;
+        }
+        
+        .kpi-tooltip-range span {
+            display: block;
+            margin-top: 2px;
+        }
+        
+        .range-normal { color: #7ee2a8; }
+        .range-warning { color: #ffd27a; }
+        .range-critical { color: #ff8a8a; }
+        
+        .kpi-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        
+        .kpi-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+        }
+        
+        .kpi-icon.voltage { background: #e5f2ff; color: var(--sapBrandColor); }
+        .kpi-icon.frequency { background: #fff4e5; color: var(--sapWarningColor); }
+        .kpi-icon.load { background: #e5fef1; color: var(--sapSuccessColor); }
+        .kpi-icon.events { background: #f5f5f5; color: var(--sapNeutralColor); }
+        .kpi-icon.anomaly { background: #fff3f3; color: var(--sapErrorColor); }
+        
+        .kpi-label {
+            font-size: 13px;
+            color: var(--sapNeutralColor);
+        }
+        
+        .kpi-value {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--sapTextColor);
+        }
+        
+        .kpi-unit {
+            font-size: 14px;
+            font-weight: 400;
+            color: var(--sapNeutralColor);
+            margin-left: 4px;
+        }
+        
+        /* Berlin Map Section */
+        .map-section {
+            background: var(--sapBaseColor);
+            border-radius: 8px;
+            border: 1px solid var(--sapBorderColor);
+            padding: 16px;
+            margin-bottom: 24px;
+        }
+        
+        .map-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        
+        .map-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--sapTextColor);
+        }
+        
+        .map-legend {
+            display: flex;
+            gap: 16px;
+            font-size: 12px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+        
+        .legend-dot.online { background: var(--sapSuccessColor); }
+        .legend-dot.anomaly { background: var(--sapErrorColor); }
+        .legend-dot.offline { background: var(--sapNeutralColor); }
+        
+        .berlin-map {
+            position: relative;
+            width: 100%;
+            height: 380px;
+            background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            border-radius: 8px;
+            border: 1px solid var(--sapBorderColor);
+            overflow: hidden;
+        }
+        
+        /* District Styling */
+        .district {
+            position: absolute;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.7);
+            border: 1px solid var(--sapBorderColor);
+            display: flex;
+            flex-direction: column;
+            padding: 6px;
+            transition: all 0.2s ease;
+        }
+        
+        .district:hover {
+            background: rgba(255, 255, 255, 0.95);
+            border-color: var(--sapBrandColor);
+            box-shadow: 0 2px 8px rgba(10, 110, 209, 0.15);
+        }
+        
+        .district-label {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--sapTextColor);
+            text-align: center;
+            padding: 2px 6px;
+            background: var(--sapBaseColor);
+            border-radius: 4px;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .district-sensors {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            justify-content: center;
+            align-content: flex-start;
+            flex: 1;
+            overflow: hidden;
+        }
+        
+        /* Sensor Markers */
+        .sensor-marker {
+            width: 26px;
+            height: 26px;
+            background: var(--sapBaseColor);
+            border-radius: 4px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            border: 2px solid var(--sapSuccessColor);
+        }
+        
+        .sensor-marker:hover {
+            transform: scale(1.15);
+            z-index: 100;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+        
+        .sensor-marker.offline {
+            border-color: var(--sapNeutralColor);
+            opacity: 0.5;
+        }
+        
+        .sensor-marker.anomaly {
+            border-color: var(--sapErrorColor);
+            background: #fff3f3;
+            animation: fioriPulse 1.5s infinite;
+        }
+        
+        @keyframes fioriPulse {
+            0%, 100% { box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); }
+            50% { box-shadow: 0 0 0 4px rgba(187, 0, 0, 0.2); }
+        }
+        
+        .marker-icon {
+            font-size: 10px;
+        }
+        
+        .marker-label {
+            font-size: 7px;
+            font-weight: 600;
+            color: var(--sapNeutralColor);
+        }
+        
+        /* Tooltip */
+        .tooltip {
+            display: none;
+            position: absolute;
+            background: var(--sapShellColor);
+            color: white;
+            padding: 12px 16px;
+            border-radius: 4px;
+            font-size: 12px;
+            z-index: 1000;
+            pointer-events: none;
+            white-space: nowrap;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+        }
+        
+        .tooltip.show { display: block; }
+        
+        .tooltip-title {
+            font-weight: 600;
+            margin-bottom: 8px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .tooltip-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 16px;
+            margin-top: 4px;
+        }
+        
+        .tooltip-label {
+            color: rgba(255, 255, 255, 0.7);
+        }
+        
+        .tooltip-value {
+            font-weight: 600;
+        }
+        
+        /* Sensor Cards Grid */
+        .sensor-section {
+            margin-bottom: 24px;
+        }
+        
+        .sensor-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 16px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .sensor-card {
+            background: var(--sapBaseColor);
+            border-radius: 8px;
+            border: 1px solid var(--sapBorderColor);
+            border-left: 4px solid var(--sapSuccessColor);
+            overflow: hidden;
+            transition: box-shadow 0.15s ease;
+        }
+        
+        .sensor-card:hover {
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+        
+        .sensor-card.offline {
+            border-left-color: var(--sapNeutralColor);
+            opacity: 0.7;
+        }
+        
+        .sensor-card.anomaly {
+            border-left-color: var(--sapErrorColor);
+            animation: cardPulse 2s infinite;
+        }
+        
+        @keyframes cardPulse {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(187, 0, 0, 0); }
+            50% { box-shadow: 0 0 0 3px rgba(187, 0, 0, 0.15); }
+        }
+        
+        .sensor-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            padding: 12px 16px;
+            background: #fafbfc;
+            border-bottom: 1px solid var(--sapBorderColor);
+        }
+        
+        .sensor-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--sapTextColor);
+        }
+        
+        .sensor-district {
+            font-size: 12px;
+            color: var(--sapNeutralColor);
+            margin-top: 2px;
+        }
+        
+        .sensor-status {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+        
+        .sensor-status.online {
+            background: #e5fef1;
+            color: var(--sapSuccessColor);
+        }
+        
+        .sensor-status.offline {
+            background: #f5f5f5;
+            color: var(--sapNeutralColor);
+        }
+        
+        .sensor-status.anomaly {
+            background: #fff3f3;
+            color: var(--sapErrorColor);
+        }
+        
+        .sensor-metrics {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            padding: 12px 16px;
+            gap: 12px;
+        }
+        
+        .metric-item {
+            background: #f8fafc;
+            padding: 10px 12px;
+            border-radius: 4px;
+        }
+        
+        .metric-label {
+            font-size: 11px;
+            color: var(--sapNeutralColor);
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            margin-bottom: 4px;
+        }
+        
+        .metric-value {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--sapTextColor);
+        }
+        
+        .metric-unit {
+            font-size: 12px;
+            font-weight: 400;
+            color: var(--sapNeutralColor);
+        }
+        
+        .sensor-footer {
+            padding: 8px 16px;
+            background: #fafbfc;
+            border-top: 1px solid var(--sapBorderColor);
+            font-size: 11px;
+            color: var(--sapNeutralColor);
+            text-align: right;
+        }
+        
+        /* Event Log */
+        .log-section {
+            background: var(--sapBaseColor);
+            border-radius: 8px;
+            border: 1px solid var(--sapBorderColor);
+            overflow: hidden;
+        }
+        
+        .log-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            background: #fafbfc;
+            border-bottom: 1px solid var(--sapBorderColor);
+        }
+        
+        .log-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--sapTextColor);
+        }
+        
+        .log-stats {
+            display: flex;
+            gap: 16px;
+            font-size: 12px;
+            color: var(--sapNeutralColor);
+        }
+        
+        .log-stat-value {
+            font-weight: 600;
+            color: var(--sapTextColor);
+        }
+        
+        .log-content {
+            max-height: 300px;
+            overflow-y: auto;
+            padding: 8px 0;
+        }
+        
+        .log-entry {
+            padding: 8px 16px;
+            font-family: 'SF Mono', 'Monaco', 'Inconsolata', monospace;
+            font-size: 12px;
+            border-bottom: 1px solid #f5f5f5;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+        }
+        
+        .log-entry:hover {
+            background: #fafbfc;
+        }
+        
+        .log-time {
+            color: var(--sapNeutralColor);
+            font-size: 11px;
+            min-width: 70px;
+        }
+        
+        .log-message {
+            flex: 1;
+        }
+        
+        .log-entry.log-anomaly {
+            background: #fff8f8;
+        }
+        
+        .log-entry.log-anomaly .log-message {
+            color: var(--sapErrorColor);
+            font-weight: 600;
+        }
+        
+        .log-entry.log-info .log-message {
+            color: var(--sapBrandColor);
+        }
+        
+        .log-entry.log-normal .log-message {
+            color: var(--sapTextColor);
+        }
+        
+        /* Scrollbar Styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #f5f5f5;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #c4c4c4;
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a0a0a0;
+        }
+        
+        /* Footer */
+        .page-footer {
+            padding: 16px 24px;
+            text-align: center;
+            font-size: 12px;
+            color: var(--sapNeutralColor);
+            border-top: 1px solid var(--sapBorderColor);
+            background: var(--sapBaseColor);
+        }
+    </style>
+</head>
+<body>
+    <!-- SAP Shell Header -->
+    <div class="sap-shell-header">
+        <div class="shell-logo">
+            <svg viewBox="0 0 92 46" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M0 0h92v46H0V0z" fill="#fff"/>
+                <path d="M46 0H0v46h46c12.7 0 23-10.3 23-23S58.7 0 46 0z" fill="#00AAEE"/>
+                <path d="M46 46h46V0H46c-12.7 0-23 10.3-23 23s10.3 23 23 23z" fill="#F0AB00"/>
+                <text x="18" y="30" font-family="Arial" font-size="18" font-weight="bold" fill="#fff">BS</text>
+            </svg>
+            <span class="shell-title">BS GRID - Real-Time Power Grid Monitoring</span>
+        </div>
+        <div class="shell-spacer"></div>
+        <div class="shell-actions">
+            <span style="color: rgba(255,255,255,0.7); font-size: 12px;">SMF Protocol</span>
+        </div>
+    </div>
+    
+    <!-- Object Page Header -->
+    <div class="object-page-header">
+        <div class="object-header-content">
+            <div class="object-icon">⚡</div>
+            <div class="object-title-area">
+                <div class="object-title">Berlin Grid Monitoring</div>
+                <div class="object-subtitle">Real-time transformer status across Berlin districts • Berliner Stadtwerke</div>
+            </div>
+            <div class="object-status">
+                <div class="status-badge neutral" id="connectionStatus">
+                    <span class="status-dot"></span>
+                    <span>Disconnected</span>
+                </div>
+                <button class="sap-button emphasized" id="connectBtn" onclick="toggleConnection()">Connect</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Page Content -->
+    <div class="page-content">
+        
+        <!-- KPI Tiles -->
+        <div class="kpi-container">
+            <div class="kpi-tile">
+                <div class="kpi-tooltip">
+                    <div class="kpi-tooltip-title">Average Voltage</div>
+                    Die Netzspannung zeigt die elektrische Spannung im Mittelspannungsnetz. Abweichungen können auf Lastprobleme oder Transformatorstörungen hinweisen.
+                    <div class="kpi-tooltip-range">
+                        <span class="range-normal">✓ Normal: 228 - 232 V</span>
+                        <span class="range-warning">⚠ Warnung: &lt;225 V oder &gt;235 V</span>
+                        <span class="range-critical">✕ Kritisch: &lt;220 V oder &gt;240 V</span>
+                    </div>
+                </div>
+                <div class="kpi-header">
+                    <div class="kpi-icon voltage">V</div>
+                    <div class="kpi-label">Avg. Voltage</div>
+                </div>
+                <div class="kpi-value" id="avgVoltage">--<span class="kpi-unit">V</span></div>
+            </div>
+            <div class="kpi-tile">
+                <div class="kpi-tooltip">
+                    <div class="kpi-tooltip-title">Average Frequency</div>
+                    Die Netzfrequenz ist der kritischste Indikator für Netzstabilität. Sie zeigt das Gleichgewicht zwischen Stromerzeugung und -verbrauch. Bereits kleine Abweichungen erfordern sofortige Maßnahmen (Swissgrid-Referenz).
+                    <div class="kpi-tooltip-range">
+                        <span class="range-normal">✓ Normal: 49.98 - 50.02 Hz</span>
+                        <span class="range-warning">⚠ Warnung: &lt;49.95 oder &gt;50.05 Hz</span>
+                        <span class="range-critical">✕ Kritisch: &lt;49.80 oder &gt;50.20 Hz</span>
+                    </div>
+                </div>
+                <div class="kpi-header">
+                    <div class="kpi-icon frequency">Hz</div>
+                    <div class="kpi-label">Avg. Frequency</div>
+                </div>
+                <div class="kpi-value" id="avgFrequency">--<span class="kpi-unit">Hz</span></div>
+            </div>
+            <div class="kpi-tile">
+                <div class="kpi-tooltip">
+                    <div class="kpi-tooltip-title">Average Load</div>
+                    Die Transformatorauslastung zeigt, wie stark die Transformatoren beansprucht werden. Hohe Auslastung führt zu erhöhter Wärmeentwicklung und verkürzt die Lebensdauer der Komponenten.
+                    <div class="kpi-tooltip-range">
+                        <span class="range-normal">✓ Normal: 50 - 70%</span>
+                        <span class="range-warning">⚠ Warnung: &gt;85%</span>
+                        <span class="range-critical">✕ Kritisch: &gt;95%</span>
+                    </div>
+                </div>
+                <div class="kpi-header">
+                    <div class="kpi-icon load">%</div>
+                    <div class="kpi-label">Avg. Load</div>
+                </div>
+                <div class="kpi-value" id="avgLoad">--<span class="kpi-unit">%</span></div>
+            </div>
+            <div class="kpi-tile">
+                <div class="kpi-tooltip">
+                    <div class="kpi-tooltip-title">Active Sensors</div>
+                    Anzahl der aktuell aktiven Sensoren im Netz. Jeder Sensor überwacht einen Transformator und sendet Statusmeldungen im Sekundentakt. Bei Ausfall eines Sensors wird automatisch ein Alarm ausgelöst.
+                    <div class="kpi-tooltip-range">
+                        <span class="range-normal">✓ Alle Sensoren online</span>
+                        <span class="range-warning">⚠ Sensoren offline → prüfen</span>
+                    </div>
+                </div>
+                <div class="kpi-header">
+                    <div class="kpi-icon events">⚡</div>
+                    <div class="kpi-label">Active Sensors</div>
+                </div>
+                <div class="kpi-value" id="activeSensors">0</div>
+            </div>
+            <div class="kpi-tile">
+                <div class="kpi-tooltip">
+                    <div class="kpi-tooltip-title">Events pro Sekunde</div>
+                    Durchsatz der Event-Streaming-Pipeline. Jeder Sensor sendet 1 Event/Sekunde. Bei 100 aktiven Sensoren werden 100 Events/Sekunde verarbeitet – in Echtzeit über SAP Advanced Event Mesh (Solace).
+                    <div class="kpi-tooltip-range">
+                        <span class="range-normal">✓ Events = Active Sensors</span>
+                        <span class="range-warning">⚠ Abweichung → Netzwerkprobleme</span>
+                    </div>
+                </div>
+                <div class="kpi-header">
+                    <div class="kpi-icon events">#</div>
+                    <div class="kpi-label">Events/sec</div>
+                </div>
+                <div class="kpi-value" id="eventRate">--</div>
+            </div>
+            <div class="kpi-tile">
+                <div class="kpi-tooltip">
+                    <div class="kpi-tooltip-title">Anomalien</div>
+                    Anzahl der Sensoren mit kritischen Abweichungen. Eine Anomalie wird erkannt wenn Frequenz, Spannung, Last oder Temperatur außerhalb der Grenzwerte liegen. Sofortige Reaktion erforderlich!
+                    <div class="kpi-tooltip-range">
+                        <span class="range-normal">✓ 0 Anomalien = stabiles Netz</span>
+                        <span class="range-warning">⚠ Anomalie = Grid Stress</span>
+                        <span class="range-critical">✕ Mehrere = Notfallplan prüfen</span>
+                    </div>
+                </div>
+                <div class="kpi-header">
+                    <div class="kpi-icon anomaly">!</div>
+                    <div class="kpi-label">Anomalies</div>
+                </div>
+                <div class="kpi-value" id="anomalyCount">0</div>
+            </div>
+        </div>
+        
+        <!-- Berlin Map -->
+        <div class="map-section">
+            <div class="map-header">
+                <div class="map-title">📍 Sensor Locations - Berlin Districts</div>
+                <div class="map-legend">
+                    <div class="legend-item"><div class="legend-dot online"></div> Online</div>
+                    <div class="legend-item"><div class="legend-dot anomaly"></div> Anomaly</div>
+                    <div class="legend-item"><div class="legend-dot offline"></div> Offline</div>
+                </div>
+            </div>
+            <div class="berlin-map" id="berlinMap">
+                <!-- Districts positioned according to Berlin geography -->
+                <div class="district" id="district-SPA" style="left: 1%; top: 20%; width: 16%; height: 35%;">
+                    <div class="district-label">Spandau</div>
+                    <div class="district-sensors" id="sensors-SPA"></div>
+                </div>
+                <div class="district" id="district-WED" style="left: 32%; top: 3%; width: 18%; height: 24%;">
+                    <div class="district-label">Wedding</div>
+                    <div class="district-sensors" id="sensors-WED"></div>
+                </div>
+                <div class="district" id="district-PRZ" style="left: 52%; top: 3%; width: 22%; height: 28%;">
+                    <div class="district-label">Prenzlauer Berg</div>
+                    <div class="district-sensors" id="sensors-PRZ"></div>
+                </div>
+                <div class="district" id="district-CHA" style="left: 6%; top: 28%; width: 22%; height: 30%;">
+                    <div class="district-label">Charlottenburg</div>
+                    <div class="district-sensors" id="sensors-CHA"></div>
+                </div>
+                <div class="district" id="district-MIT" style="left: 35%; top: 26%; width: 18%; height: 28%;">
+                    <div class="district-label">Mitte</div>
+                    <div class="district-sensors" id="sensors-MIT"></div>
+                </div>
+                <div class="district" id="district-FRH" style="left: 58%; top: 30%; width: 20%; height: 26%;">
+                    <div class="district-label">Friedrichshain</div>
+                    <div class="district-sensors" id="sensors-FRH"></div>
+                </div>
+                <div class="district" id="district-SCH" style="left: 22%; top: 54%; width: 18%; height: 26%;">
+                    <div class="district-label">Schöneberg</div>
+                    <div class="district-sensors" id="sensors-SCH"></div>
+                </div>
+                <div class="district" id="district-KRZ" style="left: 45%; top: 52%; width: 18%; height: 26%;">
+                    <div class="district-label">Kreuzberg</div>
+                    <div class="district-sensors" id="sensors-KRZ"></div>
+                </div>
+                <div class="district" id="district-TMP" style="left: 28%; top: 74%; width: 22%; height: 24%;">
+                    <div class="district-label">Tempelhof</div>
+                    <div class="district-sensors" id="sensors-TMP"></div>
+                </div>
+                <div class="district" id="district-NEU" style="left: 54%; top: 72%; width: 22%; height: 26%;">
+                    <div class="district-label">Neukölln</div>
+                    <div class="district-sensors" id="sensors-NEU"></div>
+                </div>
+                
+                <!-- Tooltip -->
+                <div class="tooltip" id="tooltip"></div>
+            </div>
+        </div>
+        
+        <!-- Sensor Cards -->
+        <div class="sensor-section">
+            <div class="section-title">Active Sensors</div>
+            <div class="sensor-grid" id="sensorGrid">
+                <!-- Sensor cards will be added dynamically -->
+            </div>
+        </div>
+        
+        <!-- Event Log -->
+        <div class="log-section">
+            <div class="log-header">
+                <div class="log-title">Event Stream</div>
+                <div class="log-stats">
+                    <span><span class="log-stat-value" id="liveEventRate">0</span> events/sec</span>
+                    <span>Total: <span class="log-stat-value" id="totalEvents">0</span></span>
+                </div>
+            </div>
+            <div class="log-content" id="log">
+                <div class="log-entry log-info">
+                    <span class="log-time">Ready</span>
+                    <span class="log-message">Dashboard initialized. Click Connect to start monitoring.</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Footer -->
+    <div class="page-footer">
+        BS GRID POC • Berliner Stadtwerke • SAP Advanced Event Mesh (Solace) • Real-Time Grid Monitoring
+    </div>
+
+    <script>
+        // ═══════════════════════════════════════════════════════════════
+        // SOLACE SMF CONFIGURATION
+        // ═══════════════════════════════════════════════════════════════
+        const CONFIG = {
+            url: 'wss://mr-connection-gu0w0pjgchg.messaging.solace.cloud:443',
+            vpn: 'germangrid_berlin',
+            username: 'solace-cloud-client',
+            password: 'iejmgp94muv7m5ahsfe9b50dvb'
+        };
+        
+        const SUBSCRIPTION_TOPIC = 'bs/*/mv/transformer/powerline/statusUpdated/v1/*';
+        
+        const DISTRICTS = {
+            'MIT': 'Mitte',
+            'KRZ': 'Kreuzberg',
+            'CHA': 'Charlottenburg',
+            'PRZ': 'Prenzlauer Berg',
+            'FRH': 'Friedrichshain',
+            'NEU': 'Neukölln',
+            'TMP': 'Tempelhof',
+            'SCH': 'Schöneberg',
+            'WED': 'Wedding',
+            'SPA': 'Spandau'
+        };
+        
+        let session = null;
+        let connected = false;
+        let sensorData = {};
+        let totalEvents = 0;
+        let anomalyCount = 0;
+        let eventTimestamps = [];
+        
+        // ═══════════════════════════════════════════════════════════════
+        // HELPER FUNCTIONS
+        // ═══════════════════════════════════════════════════════════════
+        function getDistrictCode(sensorId) {
+            const parts = sensorId.split('-');
+            return parts.length >= 2 ? parts[1] : 'MIT';
+        }
+        
+        function getDistrictName(sensorId) {
+            const code = getDistrictCode(sensorId);
+            return DISTRICTS[code] || code;
+        }
+        
+        function getSensorNumber(sensorId) {
+            const parts = sensorId.split('-');
+            return parts.length >= 3 ? parts[2] : '???';
+        }
+        
+        // ═══════════════════════════════════════════════════════════════
+        // SENSOR CREATION & UPDATE
+        // ═══════════════════════════════════════════════════════════════
+        function createSensorCard(sensorId) {
+            const card = document.createElement('div');
+            card.className = 'sensor-card offline';
+            card.id = `card-${sensorId}`;
+            card.innerHTML = `
+                <div class="sensor-card-header">
+                    <div>
+                        <div class="sensor-name">${sensorId}</div>
+                        <div class="sensor-district">${getDistrictName(sensorId)}</div>
+                    </div>
+                    <span class="sensor-status offline" id="status-${sensorId}">Offline</span>
+                </div>
+                <div class="sensor-metrics">
+                    <div class="metric-item">
+                        <div class="metric-label">Voltage</div>
+                        <div class="metric-value" id="voltage-${sensorId}">--<span class="metric-unit">V</span></div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-label">Frequency</div>
+                        <div class="metric-value" id="frequency-${sensorId}">--<span class="metric-unit">Hz</span></div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-label">Load</div>
+                        <div class="metric-value" id="load-${sensorId}">--<span class="metric-unit">%</span></div>
+                    </div>
+                    <div class="metric-item">
+                        <div class="metric-label">Temperature</div>
+                        <div class="metric-value" id="temp-${sensorId}">--<span class="metric-unit">°C</span></div>
+                    </div>
+                </div>
+                <div class="sensor-footer" id="update-${sensorId}">No data</div>
+            `;
+            document.getElementById('sensorGrid').appendChild(card);
+        }
+        
+        function createMapMarker(sensorId) {
+            const marker = document.createElement('div');
+            marker.className = 'sensor-marker offline';
+            marker.id = `marker-${sensorId}`;
+            marker.innerHTML = `
+                <div class="marker-icon">⚡</div>
+                <div class="marker-label">${getSensorNumber(sensorId)}</div>
+            `;
+            
+            const districtCode = getDistrictCode(sensorId);
+            const container = document.getElementById(`sensors-${districtCode}`);
+            if (container) {
+                container.appendChild(marker);
+            }
+            
+            marker.addEventListener('mouseenter', (e) => showTooltip(e, sensorId));
+            marker.addEventListener('mouseleave', hideTooltip);
+        }
+        
+        function updateSensor(sensorId, data) {
+            if (!sensorData[sensorId]) {
+                createSensorCard(sensorId);
+                createMapMarker(sensorId);
+            }
+            
+            const voltage = data.metrics.voltage.toFixed(0);
+            const frequency = data.metrics.frequency.toFixed(2);
+            const load = data.metrics.load.toFixed(0);
+            const temp = data.metrics.temperature.toFixed(0);
+            
+            const isAnomaly = data.status === 'anomaly';
+            const wasAnomaly = sensorData[sensorId] && sensorData[sensorId].status === 'anomaly';
+            
+            if (isAnomaly && !wasAnomaly) {
+                anomalyCount++;
+            } else if (!isAnomaly && wasAnomaly) {
+                anomalyCount = Math.max(0, anomalyCount - 1);
+                addLog(`${sensorId}: Grid stabilized`, 'info');
+            }
+            
+            sensorData[sensorId] = {
+                status: isAnomaly ? 'anomaly' : 'online',
+                voltage: parseFloat(voltage),
+                frequency: parseFloat(frequency),
+                load: parseFloat(load),
+                temp: parseFloat(temp),
+                lastUpdate: new Date()
+            };
+            
+            // Update card
+            const card = document.getElementById(`card-${sensorId}`);
+            const statusBadge = document.getElementById(`status-${sensorId}`);
+            card.className = `sensor-card ${sensorData[sensorId].status}`;
+            statusBadge.className = `sensor-status ${sensorData[sensorId].status}`;
+            statusBadge.textContent = isAnomaly ? 'Anomaly' : 'Online';
+            
+            document.getElementById(`voltage-${sensorId}`).innerHTML = `${voltage}<span class="metric-unit">V</span>`;
+            document.getElementById(`frequency-${sensorId}`).innerHTML = `${frequency}<span class="metric-unit">Hz</span>`;
+            document.getElementById(`load-${sensorId}`).innerHTML = `${load}<span class="metric-unit">%</span>`;
+            document.getElementById(`temp-${sensorId}`).innerHTML = `${temp}<span class="metric-unit">°C</span>`;
+            document.getElementById(`update-${sensorId}`).textContent = `Last update: ${new Date().toLocaleTimeString('de-DE')}`;
+            
+            // Update map marker
+            const marker = document.getElementById(`marker-${sensorId}`);
+            if (marker) {
+                marker.className = `sensor-marker ${sensorData[sensorId].status}`;
+            }
+            
+            updateSummary();
+        }
+        
+        // ═══════════════════════════════════════════════════════════════
+        // TOOLTIP
+        // ═══════════════════════════════════════════════════════════════
+        function showTooltip(e, sensorId) {
+            const data = sensorData[sensorId];
+            if (!data) return;
+            
+            const tooltip = document.getElementById('tooltip');
+            tooltip.innerHTML = `
+                <div class="tooltip-title">${sensorId} • ${getDistrictName(sensorId)}</div>
+                <div class="tooltip-row"><span class="tooltip-label">Voltage</span><span class="tooltip-value">${data.voltage} V</span></div>
+                <div class="tooltip-row"><span class="tooltip-label">Frequency</span><span class="tooltip-value">${data.frequency} Hz</span></div>
+                <div class="tooltip-row"><span class="tooltip-label">Load</span><span class="tooltip-value">${data.load}%</span></div>
+                <div class="tooltip-row"><span class="tooltip-label">Temperature</span><span class="tooltip-value">${data.temp}°C</span></div>
+            `;
+            tooltip.className = 'tooltip show';
+            
+            const rect = e.target.getBoundingClientRect();
+            const mapRect = document.getElementById('berlinMap').getBoundingClientRect();
+            tooltip.style.left = (rect.left - mapRect.left + 35) + 'px';
+            tooltip.style.top = (rect.top - mapRect.top - 10) + 'px';
+        }
+        
+        function hideTooltip() {
+            document.getElementById('tooltip').className = 'tooltip';
+        }
+        
+        // ═══════════════════════════════════════════════════════════════
+        // SUMMARY
+        // ═══════════════════════════════════════════════════════════════
+        function updateSummary() {
+            const activeSensors = Object.values(sensorData).filter(s => s.status !== 'offline').length;
+            const voltages = Object.values(sensorData).filter(s => s.status !== 'offline').map(s => s.voltage);
+            const frequencies = Object.values(sensorData).filter(s => s.status !== 'offline').map(s => s.frequency);
+            const loads = Object.values(sensorData).filter(s => s.status !== 'offline').map(s => s.load);
+            
+            document.getElementById('activeSensors').textContent = activeSensors;
+            document.getElementById('totalEvents').textContent = totalEvents;
+            document.getElementById('anomalyCount').textContent = anomalyCount;
+            
+            if (voltages.length > 0) {
+                const avgVoltage = (voltages.reduce((a, b) => a + b, 0) / voltages.length).toFixed(0);
+                const avgFreq = (frequencies.reduce((a, b) => a + b, 0) / frequencies.length).toFixed(2);
+                const avgLoad = (loads.reduce((a, b) => a + b, 0) / loads.length).toFixed(0);
+                document.getElementById('avgVoltage').innerHTML = `${avgVoltage}<span class="kpi-unit">V</span>`;
+                document.getElementById('avgFrequency').innerHTML = `${avgFreq}<span class="kpi-unit">Hz</span>`;
+                document.getElementById('avgLoad').innerHTML = `${avgLoad}<span class="kpi-unit">%</span>`;
+            }
+            
+            const now = Date.now();
+            eventTimestamps = eventTimestamps.filter(t => now - t < 10000);
+            const rate = (eventTimestamps.length / 10).toFixed(1);
+            document.getElementById('eventRate').textContent = rate;
+            document.getElementById('liveEventRate').textContent = rate;
+        }
+        
+        // ═══════════════════════════════════════════════════════════════
+        // LOG
+        // ═══════════════════════════════════════════════════════════════
+        function addLog(message, type = 'info') {
+            const log = document.getElementById('log');
+            const time = new Date().toLocaleTimeString('de-DE');
+            const entry = document.createElement('div');
+            entry.className = `log-entry log-${type}`;
+            entry.innerHTML = `<span class="log-time">${time}</span><span class="log-message">${message}</span>`;
+            log.insertBefore(entry, log.firstChild);
+            
+            while (log.children.length > 200) {
+                log.removeChild(log.lastChild);
+            }
+        }
+        
+        // ═══════════════════════════════════════════════════════════════
+        // SOLACE SMF CONNECTION
+        // ═══════════════════════════════════════════════════════════════
+        function toggleConnection() {
+            if (connected) {
+                disconnect();
+            } else {
+                connect();
+            }
+        }
+        
+        function connect() {
+            if (typeof solace === 'undefined') {
+                addLog('Solace library not loaded. Please refresh the page.', 'error');
+                return;
+            }
+            
+            addLog('Connecting to SAP Advanced Event Mesh...', 'info');
+            
+            const factoryProps = new solace.SolclientFactoryProperties();
+            factoryProps.profile = solace.SolclientFactoryProfiles.version10;
+            solace.SolclientFactory.init(factoryProps);
+            
+            const sessionProps = new solace.SessionProperties();
+            sessionProps.url = CONFIG.url;
+            sessionProps.vpnName = CONFIG.vpn;
+            sessionProps.userName = CONFIG.username;
+            sessionProps.password = CONFIG.password;
+            sessionProps.clientName = `bs-grid-fiori-${Date.now()}`;
+            sessionProps.connectRetries = 3;
+            sessionProps.reconnectRetries = 5;
+            
+            try {
+                session = solace.SolclientFactory.createSession(sessionProps);
+                
+                session.on(solace.SessionEventCode.UP_NOTICE, () => {
+                    connected = true;
+                    addLog('Connected to SAP Advanced Event Mesh', 'info');
+                    document.getElementById('connectionStatus').className = 'status-badge success';
+                    document.getElementById('connectionStatus').innerHTML = '<span class="status-dot"></span><span>Connected</span>';
+                    document.getElementById('connectBtn').textContent = 'Disconnect';
+                    subscribe();
+                });
+                
+                session.on(solace.SessionEventCode.CONNECT_FAILED_ERROR, (sessionEvent) => {
+                    addLog(`Connection failed: ${sessionEvent.infoStr}`, 'error');
+                    connected = false;
+                });
+                
+                session.on(solace.SessionEventCode.DISCONNECTED, () => {
+                    connected = false;
+                    document.getElementById('connectionStatus').className = 'status-badge neutral';
+                    document.getElementById('connectionStatus').innerHTML = '<span class="status-dot"></span><span>Disconnected</span>';
+                    document.getElementById('connectBtn').textContent = 'Connect';
+                    addLog('Disconnected from broker', 'info');
+                });
+                
+                session.on(solace.SessionEventCode.SUBSCRIPTION_ERROR, (sessionEvent) => {
+                    addLog(`Subscription error: ${sessionEvent.infoStr}`, 'error');
+                });
+                
+                session.on(solace.SessionEventCode.SUBSCRIPTION_OK, () => {
+                    addLog(`Subscribed to: ${SUBSCRIPTION_TOPIC}`, 'info');
+                });
+                
+                session.on(solace.SessionEventCode.MESSAGE, (message) => {
+                    try {
+                        const payload = message.getBinaryAttachment();
+                        const data = JSON.parse(payload);
+                        const sensorId = data.sensorId;
+                        
+                        if (sensorId) {
+                            totalEvents++;
+                            eventTimestamps.push(Date.now());
+                            
+                            const isNew = !sensorData[sensorId];
+                            const isAnomaly = data.status === 'anomaly';
+                            updateSensor(sensorId, data);
+                            
+                            const m = data.metrics;
+                            const logMsg = `${sensorId}: ${m.voltage.toFixed(0)}V | ${m.frequency.toFixed(2)}Hz | ${m.load.toFixed(0)}% | ${m.temperature.toFixed(0)}°C`;
+                            
+                            if (isNew) {
+                                addLog(`New sensor: ${sensorId} (${getDistrictName(sensorId)})`, 'info');
+                            } else if (isAnomaly) {
+                                addLog(`${logMsg} - ANOMALY DETECTED`, 'anomaly');
+                            } else {
+                                addLog(logMsg, 'normal');
+                            }
+                        }
+                    } catch (e) {
+                        addLog(`Parse error: ${e.message}`, 'error');
+                    }
+                });
+                
+                session.connect();
+                
+            } catch (error) {
+                addLog(`Error: ${error.message}`, 'error');
+            }
+        }
+        
+        function subscribe() {
+            try {
+                const topicSubscription = solace.SolclientFactory.createTopicDestination(SUBSCRIPTION_TOPIC);
+                session.subscribe(topicSubscription, true, SUBSCRIPTION_TOPIC, 10000);
+            } catch (error) {
+                addLog(`Subscribe error: ${error.message}`, 'error');
+            }
+        }
+        
+        function disconnect() {
+            if (session) {
+                try {
+                    session.disconnect();
+                } catch (error) {
+                    addLog(`Disconnect error: ${error.message}`, 'error');
+                }
+                session = null;
+            }
+        }
+        
+        // Initialize
+        window.addEventListener('load', () => {
+            addLog('BS GRID Dashboard initialized (SAP Fiori Style)', 'info');
+            addLog(`Topic: ${SUBSCRIPTION_TOPIC}`, 'info');
+            
+            if (typeof solace === 'undefined') {
+                addLog('Loading Solace library...', 'info');
+                setTimeout(() => {
+                    if (typeof solace !== 'undefined') {
+                        addLog('Solace library ready', 'info');
+                    } else {
+                        addLog('Solace library failed to load', 'error');
+                    }
+                }, 2000);
+            } else {
+                addLog('Solace library ready', 'info');
+            }
+        });
+    </script>
+</body>
+</html>
