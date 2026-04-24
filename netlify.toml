@@ -1,0 +1,28 @@
+[build]
+  publish = "dashboards"
+
+# Root → Fiori Dashboard
+[[redirects]]
+  from = "/"
+  to = "/dashboard-fiori.html"
+  status = 302
+
+# /dashboard → Fiori Dashboard (kurze URL)
+[[redirects]]
+  from = "/dashboard"
+  to = "/dashboard-fiori.html"
+  status = 302
+
+# Security & CORS Headers für WebSocket-Verbindungen zu SAP AEM
+[[headers]]
+  for = "/*"
+  [headers.values]
+    # WebSocket-Verbindungen zu Solace/AEM erlauben
+    Access-Control-Allow-Origin = "*"
+    Access-Control-Allow-Methods = "GET, OPTIONS"
+    # Verhindert Einbettung in fremde iFrames (Sicherheit)
+    X-Frame-Options = "SAMEORIGIN"
+    # Kein MIME-Type Sniffing
+    X-Content-Type-Options = "nosniff"
+    # HTTPS erzwingen (passt zu wss:// Broker-Verbindung)
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
