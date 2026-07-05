@@ -6,6 +6,7 @@ Showcase: Berliner Stadtwerke (BS)
 Simuliert einen Transformator-Sensor mit Grid-KPIs
 - Empfängt Befehle über MQTT (control/sensor/{id}/command)
 - Sendet Daten über MQTT an Topic: bs/{district}/mv/transformer/powerline/statusUpdated/v1/{sensorId}
+- Sendet Alarme (für Joule Agent) an: bs/{district}/mv/transformer/powerline/alarmRaised/v1/{sensorId}
 
 Verbesserungen v2:
 - Clean Session für saubere Reconnects
@@ -22,6 +23,7 @@ import threading
 import os
 import sys
 import signal
+from collections import deque
 from datetime import datetime
 
 # ============================================
@@ -81,8 +83,12 @@ class RemoteControlledSensor:
         
         # Topics
         self.data_topic = f"bs/{self.district}/mv/transformer/powerline/statusUpdated/v1/{self.sensor_id}"
+        self.alarm_topic = f"bs/{self.district}/mv/transformer/powerline/alarmRaised/v1/{self.sensor_id}"
         self.command_topic = f"control/sensor/{self.sensor_id}/command"
         self.status_topic = f"control/sensor/{self.sensor_id}/status"
+
+        # Rolling window of recent readings - sent as context with alarms
+        self.metrics_history = deque(maxlen=10)
         
         # Location
         loc = DISTRICT_LOCATIONS.get(self.district, DISTRICT_LOCATIONS['mitte'])
@@ -326,6 +332,8 @@ class RemoteControlledSensor:
     
     def _send_sensor_data(self):
         """Generate and publish sensor data"""
+        new_anomaly_type = None  # set only on the tick an anomaly starts
+
         # Check if we're in anomaly cooldown
         if hasattr(self, 'anomaly_ticks') and self.anomaly_ticks > 0:
             self.anomaly_ticks -= 1
@@ -364,6 +372,7 @@ class RemoteControlledSensor:
             if random.random() < 0.03:
                 anomaly_type = random.choice(['voltage', 'frequency', 'load', 'temperature'])
                 is_anomaly = True
+                new_anomaly_type = anomaly_type
                 self.anomaly_ticks = 2
                 
                 if anomaly_type == 'voltage':
@@ -404,13 +413,20 @@ class RemoteControlledSensor:
             }
         }
         
+        # Keep rolling context window (includes the anomalous reading itself)
+        self.metrics_history.append({
+            'timestamp': payload['timestamp'],
+            'status': status,
+            **payload['metrics']
+        })
+
         try:
             result = self.client.publish(
                 self.data_topic,
                 json.dumps(payload),
                 qos=0  # Direct messaging for real-time
             )
-            
+
             self.total_messages += 1
             
             # Print status
@@ -424,7 +440,58 @@ class RemoteControlledSensor:
         except Exception as e:
             self.failed_messages += 1
             print(f"❌ Publish error: {e}")
-    
+
+        if new_anomaly_type:
+            self._publish_alarm(new_anomaly_type)
+
+    # Alarm thresholds: (warning, critical) limits per metric.
+    # Values beyond 'critical' → severity critical, beyond 'warning' → warning.
+    ALARM_THRESHOLDS = {
+        'voltage':     {'unit': 'V',  'nominal': 230.0, 'warning': 10.0, 'critical': 15.0},   # deviation from nominal
+        'frequency':   {'unit': 'Hz', 'nominal': 50.0,  'warning': 0.05, 'critical': 0.10},   # deviation from nominal
+        'load':        {'unit': '%',  'warning': 85.0,  'critical': 92.0},                    # absolute upper limit
+        'temperature': {'unit': '°C', 'warning': 60.0,  'critical': 70.0}                     # absolute upper limit
+    }
+
+    def _publish_alarm(self, alarm_type):
+        """Publish an alarmRaised event for the Joule agent (QoS 1 - must not get lost)"""
+        cfg = self.ALARM_THRESHOLDS[alarm_type]
+        value = {
+            'voltage': self.voltage,
+            'frequency': self.frequency,
+            'load': self.load,
+            'temperature': self.temperature
+        }[alarm_type]
+
+        if 'nominal' in cfg:
+            deviation = abs(value - cfg['nominal'])
+            severity = 'critical' if deviation >= cfg['critical'] else 'warning'
+            threshold = {'nominal': cfg['nominal'], 'maxDeviation': cfg['warning']}
+        else:
+            severity = 'critical' if value >= cfg['critical'] else 'warning'
+            threshold = {'max': cfg['warning']}
+
+        now = datetime.utcnow()
+        payload = {
+            'alarmId': f"ALM-{self.sensor_id}-{now.strftime('%Y%m%d%H%M%S')}",
+            'sensorId': self.sensor_id,
+            'timestamp': now.isoformat() + 'Z',
+            'severity': severity,
+            'alarmType': alarm_type,
+            'value': round(value, 2),
+            'unit': cfg['unit'],
+            'threshold': threshold,
+            'location': self.location,
+            'recentMetrics': list(self.metrics_history)
+        }
+
+        try:
+            self.client.publish(self.alarm_topic, json.dumps(payload), qos=1)
+            print(f"🚨 ALARM [{severity.upper()}] {alarm_type}={payload['value']}{cfg['unit']} "
+                  f"→ {self.alarm_topic}")
+        except Exception as e:
+            print(f"❌ Alarm publish error: {e}")
+
     def disconnect(self):
         """Clean disconnect from broker"""
         print("\n🔌 Disconnecting...")

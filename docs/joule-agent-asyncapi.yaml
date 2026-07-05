@@ -1,0 +1,184 @@
+asyncapi: 2.6.0
+info:
+  title: BS GRID Joule Grid Incident Agent
+  version: 1.0.0
+  description: >
+    Event contract between the BS GRID event mesh (SAP Advanced Event Mesh /
+    Solace Cloud) and the Joule Grid Incident Agent built in Joule Studio.
+    The agent consumes transformer alarms and publishes its decisions back
+    into the mesh.
+
+servers:
+  solace-cloud:
+    url: mr-connection-gu0w0pjgchg.messaging.solace.cloud
+    protocol: smf
+    description: >
+      SAP AEM broker, Message VPN "germangrid_berlin". Alarm delivery to the
+      agent happens via REST Delivery Point (webhook push); the agent replies
+      via REST Messaging on port 9443. AMQP 1.0 on port 5671 is available as
+      an alternative consumption path.
+
+channels:
+  bs/{district}/mv/transformer/powerline/alarmRaised/v1/{sensorId}:
+    parameters:
+      district:
+        description: Berlin district, lowercase (e.g. kreuzberg, mitte)
+        schema:
+          type: string
+      sensorId:
+        description: Transformer sensor ID (e.g. TRF-KRZ-042)
+        schema:
+          type: string
+    subscribe:
+      operationId: onAlarmRaised
+      summary: Consume transformer alarms (agent input)
+      message:
+        $ref: '#/components/messages/AlarmRaised'
+
+  bs/{district}/mv/transformer/powerline/agentActionTaken/v1/{sensorId}:
+    parameters:
+      district:
+        description: Berlin district taken from the alarm's location.district
+        schema:
+          type: string
+      sensorId:
+        description: Sensor the decision applies to
+        schema:
+          type: string
+    publish:
+      operationId: publishAgentActionTaken
+      summary: Publish the agent's decision (agent output)
+      message:
+        $ref: '#/components/messages/AgentActionTaken'
+
+components:
+  messages:
+    AlarmRaised:
+      name: AlarmRaised
+      title: Transformer Alarm Raised
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/AlarmRaisedPayload'
+
+    AgentActionTaken:
+      name: AgentActionTaken
+      title: Agent Action Taken
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/AgentActionTakenPayload'
+
+  schemas:
+    AlarmRaisedPayload:
+      type: object
+      required: [alarmId, sensorId, timestamp, severity, alarmType, value, unit, threshold, location, recentMetrics]
+      properties:
+        alarmId:
+          type: string
+          description: Unique alarm ID, correlation key for the agent response
+          examples: ['ALM-TRF-KRZ-042-20260703071326']
+        sensorId:
+          type: string
+          examples: ['TRF-KRZ-042']
+        timestamp:
+          type: string
+          format: date-time
+        severity:
+          type: string
+          enum: [warning, critical]
+        alarmType:
+          type: string
+          enum: [voltage, frequency, load, temperature]
+        value:
+          type: number
+          description: The reading that triggered the alarm
+        unit:
+          type: string
+          examples: ['°C', 'V', 'Hz', '%']
+        threshold:
+          type: object
+          description: Either an absolute upper limit or a nominal value with max deviation
+          properties:
+            max:
+              type: number
+            nominal:
+              type: number
+            maxDeviation:
+              type: number
+        location:
+          $ref: '#/components/schemas/Location'
+        recentMetrics:
+          type: array
+          maxItems: 10
+          description: Rolling window of recent readings including the anomalous one — analysis context for the agent
+          items:
+            $ref: '#/components/schemas/MetricsReading'
+
+    AgentActionTakenPayload:
+      type: object
+      required: [actionId, alarmId, sensorId, timestamp, agent, decision, reasoning]
+      properties:
+        actionId:
+          type: string
+          examples: ['ACT-20260703071330-001']
+        alarmId:
+          type: string
+          description: Correlation to the alarm that triggered this decision
+        sensorId:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        agent:
+          type: string
+          description: Name/ID of the deciding agent
+          examples: ['joule-grid-incident-agent']
+        decision:
+          type: string
+          enum: [dispatch_technician, restart_sensor, monitor, escalate]
+        reasoning:
+          type: string
+          description: Short German explanation, shown live in the dashboard
+        confidence:
+          type: number
+          minimum: 0
+          maximum: 1
+        parameters:
+          type: object
+          description: Decision-specific details
+          additionalProperties: true
+
+    Location:
+      type: object
+      required: [district, lat, lon]
+      properties:
+        district:
+          type: string
+        lat:
+          type: number
+        lon:
+          type: number
+        address:
+          type: string
+
+    MetricsReading:
+      type: object
+      required: [timestamp, status]
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [normal, anomaly]
+        temperature:
+          type: number
+        voltage:
+          type: number
+        frequency:
+          type: number
+        load:
+          type: number
+        power:
+          type: number
+        uptime:
+          type: number
