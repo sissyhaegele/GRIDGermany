@@ -203,7 +203,10 @@ z.B. über eine Middleware. Queue `Q.JOULE.ALARMS` kann identisch genutzt werden
 - [x] Endpoint-URL des Joule Agents (verifiziert erreichbar, `401 Invalid JWT` ohne Token)
 - [x] Protokoll geklärt: A2A (JSON-RPC, POST /) mit OAuth → Zustellung über `joule_bridge.py`
 - [x] Token-Endpoint bekannt (IAS, siehe Tabelle oben)
-- [ ] Client-ID + Client-Secret aus dem BTP Cockpit besorgen (Service Binding)
+- [ ] Client-ID + Client-Secret besorgen — liegen im BTP-Subaccount des
+      Joule-Studio-Betreibers (Kollege): BTP Cockpit → Subaccount →
+      Instances & Subscriptions → Service `joule-agent-gateway` (oder
+      `sap-agent-gateway`) → Bindings → Credentials (`clientid`, `clientsecret`)
 - [ ] End-to-End-Test: Sensor-Alarm → Bridge → Agent → agentActionTaken im Dashboard
 - [ ] Finale Liste der `decision`-Werte, sobald der Use Case geschärft ist
 

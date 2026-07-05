@@ -97,7 +97,8 @@ def call_agent(token_provider, alarm):
                 'role': 'user',
                 'messageId': str(uuid.uuid4()),
                 'parts': [{
-                    'kind': 'text',
+                    'kind': 'text',   # A2A-Spec (neuere Versionen)
+                    'type': 'text',   # Feldname im Joule-Studio-Beispiel
                     'text': ('Neuer Transformator-Alarm aus dem BS-GRID-Event-Mesh. '
                              'Analysiere und entscheide gemäß deinen Instructions:\n'
                              + json.dumps(alarm, ensure_ascii=False))
