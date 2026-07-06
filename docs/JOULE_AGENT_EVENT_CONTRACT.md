@@ -170,18 +170,18 @@ der Agent meldet sich mit den Solace-Messaging-Credentials am Broker an und laus
 
 | Variable | Wert |
 |----------|------|
-| `SOLACE_HOST` | `mr-connection-gu0w0pjgchg.messaging.solace.cloud` |
-| `SOLACE_PORT` | `8883` (MQTT/TLS) |
+| `SOLACE_HOST` | `tcps://mr-connection-gu0w0pjgchg.messaging.solace.cloud:55443` (SMF/TLS) |
+| `SOLACE_VPN_NAME` | `germangrid_berlin` |
 | `SOLACE_USERNAME` | `solace-cloud-client` |
 | `SOLACE_PASSWORD` | siehe `BS_GRID_POC_DOKUMENTATION.md`, Abschnitt 3 |
-| `SOLACE_VPN_NAME` | `germangrid_berlin` (bei MQTT nicht zwingend) |
-| `SOLACE_SUBSCRIBE_TOPIC` | `bs/+/mv/transformer/powerline/alarmRaised/v1/#` |
+| `SOLACE_SUBSCRIBE_TOPIC` | `bs/*/mv/transformer/powerline/alarmRaised/*` |
 | `A2A_LOCAL_URL` | `http://localhost:8080/` (lokaler A2A-Endpoint) |
 
-⚠️ **Wildcard-Syntax nicht mischen.** MQTT nutzt `+` (eine Ebene) und `#` (Rest).
-Die von Joule Studio vorgeschlagene Form `bs/+/…/v1/>` mischt MQTT (`+`) mit
-SMF (`>`) und ist so ungültig. Bei MQTT (Port 8883): `…/v1/#`. Bei SMF/AMQP:
-durchgängig `bs/*/…/v1/>`.
+**Solace-nativ (SMF), nicht MQTT.** Wildcards sind `*` (eine Ebene) und `>`
+(Rest) — `+`/`#` gibt es nur auf der MQTT-Schnittstelle. Die `sensorId` ist
+genau eine Ebene, also `…/alarmRaised/*` (nicht das gierige `…/alarmRaised/>`).
+Die von Joule Studio vorgeschlagene Form `bs/+/…/>` mischte MQTT und SMF und
+war ungültig. Das Dashboard subscribed bereits SMF-nativ mit `*`.
 
 **b) `main.py`:** MQTT-Subscriber als Daemon-Thread parallel zum HTTP-Server
 starten. Fertige Referenz-Implementierung (spiegelt die bewährte Sensor-Verbindung):
