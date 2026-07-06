@@ -5,8 +5,8 @@ Showcase: Berliner Stadtwerke (BS)
 
 Simuliert einen Transformator-Sensor mit Grid-KPIs
 - Empfängt Befehle über MQTT (control/sensor/{id}/command)
-- Sendet Daten über MQTT an Topic: bs/{district}/mv/transformer/powerline/statusUpdated/v1/{sensorId}
-- Sendet Alarme (für Joule Agent) an: bs/{district}/mv/transformer/powerline/alarmRaised/v1/{sensorId}
+- Sendet Daten über MQTT an Topic: bs/{district}/mv/transformer/powerline/statusUpdated/{sensorId}
+- Sendet Alarme (für Joule Agent) an: bs/{district}/mv/transformer/powerline/alarmRaised/{sensorId}
 
 Verbesserungen v2:
 - Clean Session für saubere Reconnects
@@ -82,8 +82,8 @@ class RemoteControlledSensor:
         self.power = random.uniform(80, 120)
         
         # Topics
-        self.data_topic = f"bs/{self.district}/mv/transformer/powerline/statusUpdated/v1/{self.sensor_id}"
-        self.alarm_topic = f"bs/{self.district}/mv/transformer/powerline/alarmRaised/v1/{self.sensor_id}"
+        self.data_topic = f"bs/{self.district}/mv/transformer/powerline/statusUpdated/{self.sensor_id}"
+        self.alarm_topic = f"bs/{self.district}/mv/transformer/powerline/alarmRaised/{self.sensor_id}"
         self.command_topic = f"control/sensor/{self.sensor_id}/command"
         self.status_topic = f"control/sensor/{self.sensor_id}/status"
 

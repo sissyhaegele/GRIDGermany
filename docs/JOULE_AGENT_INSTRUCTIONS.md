@@ -29,7 +29,7 @@ Gehört zusammen mit dem [Event-Contract](JOULE_AGENT_EVENT_CONTRACT.md) und der
 
 **Name:** `Publish Agent Action`
 **Typ:** HTTP POST
-**URL-Template:** `https://mr-connection-gu0w0pjgchg.messaging.solace.cloud:9443/bs/{district}/mv/transformer/powerline/agentActionTaken/v1/{sensorId}`
+**URL-Template:** `https://mr-connection-gu0w0pjgchg.messaging.solace.cloud:9443/bs/{district}/mv/transformer/powerline/agentActionTaken/{sensorId}`
 **Auth:** Basic (Credentials siehe `BS_GRID_POC_DOKUMENTATION.md`, Abschnitt 3)
 **Header:** `Content-Type: application/json`
 **Body:** das `agentActionTaken`-JSON (Schema im Event-Contract, Abschnitt 4)
@@ -123,7 +123,7 @@ an das Event Mesh). Baue das JSON exakt so:
 
 Die Ziel-URL der Aktion enthält den Topic als Pfad — setze die Platzhalter aus
 dem Alarm ein (`location.district` und `sensorId`):
-`POST https://mr-connection-gu0w0pjgchg.messaging.solace.cloud:9443/bs/{district}/mv/transformer/powerline/agentActionTaken/v1/{sensorId}`
+`POST https://mr-connection-gu0w0pjgchg.messaging.solace.cloud:9443/bs/{district}/mv/transformer/powerline/agentActionTaken/{sensorId}`
 
 # Regeln
 

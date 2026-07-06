@@ -1029,7 +1029,7 @@
             <div class="section-title">Joule Agent Actions</div>
             <div class="agent-list" id="agentActions">
                 <div class="agent-empty" id="agentEmpty">
-                    Warte auf Agent-Entscheidungen … (Topic: bs/*/mv/transformer/powerline/agentActionTaken/v1/*)
+                    Warte auf Agent-Entscheidungen … (Topic: bs/*/mv/transformer/powerline/agentActionTaken/*)
                 </div>
             </div>
         </div>
@@ -1068,9 +1068,9 @@
             password: 'iejmgp94muv7m5ahsfe9b50dvb'
         };
         
-        const SUBSCRIPTION_TOPIC = 'bs/*/mv/transformer/powerline/statusUpdated/v1/*';
-        const ALARM_TOPIC = 'bs/*/mv/transformer/powerline/alarmRaised/v1/*';
-        const AGENT_ACTION_TOPIC = 'bs/*/mv/transformer/powerline/agentActionTaken/v1/*';
+        const SUBSCRIPTION_TOPIC = 'bs/*/mv/transformer/powerline/statusUpdated/*';
+        const ALARM_TOPIC = 'bs/*/mv/transformer/powerline/alarmRaised/*';
+        const AGENT_ACTION_TOPIC = 'bs/*/mv/transformer/powerline/agentActionTaken/*';
 
         const DECISION_LABELS = {
             'dispatch_technician': '👷 Techniker entsandt',

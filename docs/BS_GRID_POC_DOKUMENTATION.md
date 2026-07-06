@@ -85,22 +85,22 @@ Password: iejmgp94muv7m5ahsfe9b50dvb
 ### Struktur (Solace Best Practices)
 
 ```
-bs/{district}/mv/transformer/powerline/statusUpdated/v1/{sensorId}
+bs/{district}/mv/transformer/powerline/statusUpdated/{sensorId}
 ```
 
 **Beispiele:**
 ```
-bs/mitte/mv/transformer/powerline/statusUpdated/v1/TRF-MIT-001
-bs/kreuzberg/mv/transformer/powerline/statusUpdated/v1/TRF-KRZ-005
-bs/charlottenburg/mv/transformer/powerline/statusUpdated/v1/TRF-CHA-017
+bs/mitte/mv/transformer/powerline/statusUpdated/TRF-MIT-001
+bs/kreuzberg/mv/transformer/powerline/statusUpdated/TRF-KRZ-005
+bs/charlottenburg/mv/transformer/powerline/statusUpdated/TRF-CHA-017
 ```
 
 ### Wildcard Subscriptions
 
 | Protokoll | Syntax | Beispiel |
 |-----------|--------|----------|
-| MQTT | `+` / `#` | `bs/+/mv/transformer/powerline/statusUpdated/v1/+` |
-| SMF | `*` / `>` | `bs/*/mv/transformer/powerline/statusUpdated/v1/*` |
+| MQTT | `+` / `#` | `bs/+/mv/transformer/powerline/statusUpdated/+` |
+| SMF | `*` / `>` | `bs/*/mv/transformer/powerline/statusUpdated/*` |
 
 ### Control Plane Topic (MQTT)
 
@@ -120,8 +120,8 @@ control/sensor/+/status
 
 | Queue Name | Topic Subscription |
 |------------|-------------------|
-| `PowerlineTracker-PowerlineHeartbeat` | `bs/*/mv/transformer/powerline/statusUpdated/v1/*` |
-| `PowerlineTracker-PowerlineStatusUpdated` | `bs/*/mv/transformer/powerline/statusUpdated/v1/*` |
+| `PowerlineTracker-PowerlineHeartbeat` | `bs/*/mv/transformer/powerline/statusUpdated/*` |
+| `PowerlineTracker-PowerlineStatusUpdated` | `bs/*/mv/transformer/powerline/statusUpdated/*` |
 
 ---
 
@@ -416,7 +416,7 @@ Sensoren → Solace Event Mesh → SAP Integration Suite (AEM)
 **Prüfen:**
 1. Dashboard connected (SMF)?
 2. Sensoren senden Daten (MQTT)?
-3. Topic-Subscription: `bs/*/mv/transformer/powerline/statusUpdated/v1/*`
+3. Topic-Subscription: `bs/*/mv/transformer/powerline/statusUpdated/*`
 
 ### Problem: Nur ein Bezirk im Dashboard
 **Lösung:** Neue `start.sh` und `fleet-control.html` verwenden (round-robin Sortierung)

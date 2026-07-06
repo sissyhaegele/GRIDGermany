@@ -19,7 +19,7 @@ servers:
       an alternative consumption path.
 
 channels:
-  bs/{district}/mv/transformer/powerline/alarmRaised/v1/{sensorId}:
+  bs/{district}/mv/transformer/powerline/alarmRaised/{sensorId}:
     parameters:
       district:
         description: Berlin district, lowercase (e.g. kreuzberg, mitte)
@@ -35,7 +35,7 @@ channels:
       message:
         $ref: '#/components/messages/AlarmRaised'
 
-  bs/{district}/mv/transformer/powerline/agentActionTaken/v1/{sensorId}:
+  bs/{district}/mv/transformer/powerline/agentActionTaken/{sensorId}:
     parameters:
       district:
         description: Berlin district taken from the alarm's location.district

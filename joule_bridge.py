@@ -4,7 +4,7 @@ GRIDGermany - Joule Agent Bridge
 Showcase: Berliner Stadtwerke (BS)
 
 Verbindet das Event Mesh mit dem Grid Incident Agent (Joule Studio):
-- Abonniert Alarme:  bs/{district}/mv/transformer/powerline/alarmRaised/v1/{sensorId}
+- Abonniert Alarme:  bs/{district}/mv/transformer/powerline/alarmRaised/{sensorId}
 - Holt OAuth-Token (Client Credentials) vom IAS Token-Endpoint
 - Ruft den Agent per A2A (JSON-RPC, POST /) mit dem Alarm als Task auf
 
@@ -41,7 +41,7 @@ PORT = int(os.getenv('SOLACE_PORT', 8883))
 USERNAME = os.getenv('SOLACE_USERNAME', 'solace-cloud-client')
 PASSWORD = os.getenv('SOLACE_PASSWORD', 'iejmgp94muv7m5ahsfe9b50dvb')
 
-ALARM_TOPIC_FILTER = 'bs/+/mv/transformer/powerline/alarmRaised/v1/+'
+ALARM_TOPIC_FILTER = 'bs/+/mv/transformer/powerline/alarmRaised/+'
 
 # Joule Agent (Werte aus den Deployment-Logs des Kollegen)
 AGENT_URL = os.getenv('JOULE_AGENT_URL', 'https://3ccef423-ce1a19a1.joule-stg-eu12.c.run.ai.cloud.sap/')

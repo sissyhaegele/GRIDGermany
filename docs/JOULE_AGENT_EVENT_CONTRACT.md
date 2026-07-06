@@ -48,10 +48,10 @@ Referenz-Implementierung: [`joule_agent_subscriber_reference.py`](joule_agent_su
 
 **Topic:**
 ```
-bs/{bezirk}/mv/transformer/powerline/alarmRaised/v1/{sensorId}
+bs/{bezirk}/mv/transformer/powerline/alarmRaised/{sensorId}
 ```
-- MQTT-Wildcard zum Abonnieren: `bs/+/mv/transformer/powerline/alarmRaised/v1/#`
-- SMF-Wildcard: `bs/*/mv/transformer/powerline/alarmRaised/v1/>`
+- SMF-Wildcard zum Abonnieren (nativ, empfohlen): `bs/*/mv/transformer/powerline/alarmRaised/*`
+- MQTT-Interface (nur falls MQTT-Client): `bs/+/mv/transformer/powerline/alarmRaised/+`
 - QoS 1 / persistent — Alarme dürfen nicht verloren gehen.
 - Ausgelöst **einmal pro Anomalie-Beginn** (nicht pro Messwert). Bei 50 Sensoren
   entstehen im Demo-Betrieb grob 1–2 Alarme pro Sekunde (3 % Anomalie-Rate);
@@ -109,13 +109,13 @@ das Dashboard zeigt sie live an.
 
 **Topic:**
 ```
-bs/{bezirk}/mv/transformer/powerline/agentActionTaken/v1/{sensorId}
+bs/{bezirk}/mv/transformer/powerline/agentActionTaken/{sensorId}
 ```
 `{bezirk}` und `{sensorId}` aus dem Alarm übernehmen (`location.district`, `sensorId`).
 
 **Versand per REST Messaging** (einfachster Weg aus Joule Studio — normaler HTTP-Call):
 ```
-POST https://mr-connection-gu0w0pjgchg.messaging.solace.cloud:9443/bs/kreuzberg/mv/transformer/powerline/agentActionTaken/v1/TRF-KRZ-042
+POST https://mr-connection-gu0w0pjgchg.messaging.solace.cloud:9443/bs/kreuzberg/mv/transformer/powerline/agentActionTaken/TRF-KRZ-042
 Authorization: Basic <username:password>
 Content-Type: application/json
 ```
@@ -190,7 +190,7 @@ starten. Fertige Referenz-Implementierung (spiegelt die bewährte Sensor-Verbind
 
 **c) Optional — Durable Queue statt direkter Topic-Subscription.** Bei direkter
 Topic-Subscription verliert der Agent Alarme, während er offline ist. Robuster:
-eine Queue (`Q.JOULE.ALARMS`) mit Topic-Abo `bs/*/mv/transformer/powerline/alarmRaised/v1/>`
+eine Queue (`Q.JOULE.ALARMS`) mit Topic-Abo `bs/*/mv/transformer/powerline/alarmRaised/*`
 im Broker Manager anlegen und den Agent aus der Queue konsumieren lassen (AMQP,
 Port 5671). Für Live-Demos reicht die direkte Subscription.
 
@@ -216,7 +216,7 @@ Der Broker pusht jeden Alarm als HTTP POST an einen Endpoint des Agents.
 Setup im Solace Cloud **Broker Manager**:
 
 1. **Queue anlegen:** `Q.JOULE.ALARMS` (exclusive, respect TTL optional)
-2. **Topic-Subscription auf die Queue:** `bs/*/mv/transformer/powerline/alarmRaised/>` *(SMF-Syntax)*
+2. **Topic-Subscription auf die Queue:** `bs/*/mv/transformer/powerline/alarmRaised/*` *(SMF-Syntax)*
 3. **RDP anlegen:** `RDP.JOULE.AGENT`
    - REST Client (UI-Tab „REST Clients"; in der SEMP-API „REST Consumer"):
      Host/Port/TLS des Agent-Endpoints *(URL kommt vom Joule-Kollegen)*
