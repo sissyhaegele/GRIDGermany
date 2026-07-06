@@ -116,8 +116,11 @@ def _run():
             receiver.receive_async(_AlarmHandler())
             print(f"[grid-subscriber] connected, subscribed to {SUBSCRIBE_TOPIC}")
 
-            while service.is_connected:
-                time.sleep(1)
+            # Thread am Leben halten, während der Receiver asynchron zustellt.
+            # Blockieren statt 'while service.is_connected' pollen -> keine
+            # Abhängigkeit von einer versionsabhängigen Property; die Solace-API
+            # reconnected intern selbst (Default Retry Strategy).
+            threading.Event().wait()
         except Exception as e:
             print(f"[grid-subscriber] connection error: {e}, retry in 5s")
             time.sleep(5)
