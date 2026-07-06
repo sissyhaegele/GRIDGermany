@@ -8,20 +8,26 @@ und dem Joule Agent (gebaut in Joule Studio).
 
 ## 1. Architektur-Überblick
 
+Der Agent ist ein **Pro-Code-Agent** und lauscht **selbst** am Event Mesh
+(MQTT-Subscriber in seiner `main.py`, parallel zum HTTP-/A2A-Server). Er zieht
+die Alarme also aktiv — kein Push, kein Gateway, kein JWT auf dem Hinweg.
+
 ```
-┌──────────────┐  MQTT/TLS   ┌──────────────────┐  HTTP POST (RDP)   ┌─────────────────┐
-│   Sensoren   │ ──────────▶ │  Solace Cloud    │ ─────────────────▶ │  Joule Agent    │
-│  (Python)    │  alarmRaised│  Event Mesh      │   Webhook Push     │  (Joule Studio) │
-└──────────────┘             │                  │                    └────────┬────────┘
-                             │  Q.JOULE.ALARMS  │                             │
-┌──────────────┐   SMF/WSS   │                  │  ◀──────────────────────────┘
-│  Dashboard   │ ◀────────── │                  │   HTTP POST (REST Messaging, Port 9443)
-│  (Browser)   │agentAction- │                  │   agentActionTaken
-└──────────────┘   Taken     └──────────────────┘
+┌──────────────┐  MQTT/TLS   ┌──────────────────┐   MQTT/TLS (8883)   ┌─────────────────┐
+│   Sensoren   │ ──────────▶ │  Solace Cloud    │ ──────────────────▶ │  Joule Agent    │
+│  (Python)    │  alarmRaised│  Event Mesh      │  Agent subscribed   │  (Joule Studio) │
+└──────────────┘             │                  │  auf alarmRaised    │  ┌───────────┐  │
+                             │                  │                     │  │Subscriber │  │
+┌──────────────┐   SMF/WSS   │                  │                     │  │→ localhost│  │
+│  Dashboard   │ ◀────────── │                  │  ◀───────────────── │  │  A2A      │  │
+│  (Browser)   │agentAction- │                  │  REST 9443          │  └───────────┘  │
+└──────────────┘   Taken     └──────────────────┘  agentActionTaken   └─────────────────┘
 ```
 
-Der Agent **empfängt** Alarme als Webhook-Push und **antwortet** mit einem
-`agentActionTaken`-Event per REST — beides ohne Messaging-Library auf Agent-Seite.
+Der Agent **subscribed** die Alarme direkt (Messaging-Credentials, kein OAuth)
+und **antwortet** mit einem `agentActionTaken`-Event per REST auf Port 9443.
+Der Subscriber ruft den Agent in-process über seinen lokalen A2A-Endpoint auf.
+Referenz-Implementierung: [`joule_agent_subscriber_reference.py`](joule_agent_subscriber_reference.py).
 
 ---
 
@@ -31,8 +37,9 @@ Der Agent **empfängt** Alarme als Webhook-Push und **antwortet** mit einem
 |-----------|------|
 | Host | `mr-connection-gu0w0pjgchg.messaging.solace.cloud` |
 | Message VPN | `germangrid_berlin` |
-| REST Messaging (Rückkanal) | Port `9443` (HTTPS) |
-| AMQP 1.0 (Alternative zum Webhook) | Port `5671` (TLS) |
+| MQTT/TLS (Agent-Subscriber, Hinweg) | Port `8883` |
+| REST Messaging (agentActionTaken, Rückkanal) | Port `9443` (HTTPS) |
+| AMQP 1.0 (optional, Queue-Konsum) | Port `5671` (TLS) |
 | Credentials | siehe `BS_GRID_POC_DOKUMENTATION.md`, Abschnitt 3 |
 
 ---
@@ -153,37 +160,60 @@ bis zur tatsächlichen Aktion.
 
 ---
 
-## 5. Zustellung der Alarme an den Agent (Setup auf Broker-Seite)
+## 5. Zustellung der Alarme an den Agent
 
-**Aktueller Weg: `joule_bridge.py` (A2A-Bridge).** Der deployete Agent nimmt Tasks
-per **A2A (JSON-RPC, POST /)** mit OAuth/JWT entgegen — kein einfacher Webhook.
-Ein RDP kann nur rohe Message-Bodies posten und scheidet daher als Direktweg aus.
-Die Bridge im Projekt-Root übernimmt stattdessen:
+**Aktueller Weg: Der Agent subscribed selbst (Pro-Code, MQTT-Subscriber in `main.py`).**
+Kein Broker-seitiges Setup nötig, keine Bridge, kein OAuth/JWT auf dem Hinweg —
+der Agent meldet sich mit den Solace-Messaging-Credentials am Broker an und lauscht.
 
-1. abonniert `bs/+/mv/transformer/powerline/alarmRaised/v1/+` (MQTT, QoS 1,
-   persistente Session — Alarme werden bei Bridge-Ausfall gepuffert)
-2. holt das OAuth-Token (Client Credentials) vom IAS-Token-Endpoint
-3. verpackt den Alarm in einen A2A-`message/send`-Request an den Agent
+**a) `asset.yaml` (Environment des Agents):**
 
-Start:
-```bash
-JOULE_CLIENT_ID=... JOULE_CLIENT_SECRET=... python3 joule_bridge.py
-```
-Client-ID/Secret: BTP Cockpit → Subaccount → Instances & Subscriptions →
-Service Binding des Agent-/AI-Core-Dienstes.
+| Variable | Wert |
+|----------|------|
+| `SOLACE_HOST` | `mr-connection-gu0w0pjgchg.messaging.solace.cloud` |
+| `SOLACE_PORT` | `8883` (MQTT/TLS) |
+| `SOLACE_USERNAME` | `solace-cloud-client` |
+| `SOLACE_PASSWORD` | siehe `BS_GRID_POC_DOKUMENTATION.md`, Abschnitt 3 |
+| `SOLACE_VPN_NAME` | `germangrid_berlin` (bei MQTT nicht zwingend) |
+| `SOLACE_SUBSCRIBE_TOPIC` | `bs/+/mv/transformer/powerline/alarmRaised/v1/#` |
+| `A2A_LOCAL_URL` | `http://localhost:8080/` (lokaler A2A-Endpoint) |
 
-Agent-Endpunkt (aus den Deployment-Logs):
+⚠️ **Wildcard-Syntax nicht mischen.** MQTT nutzt `+` (eine Ebene) und `#` (Rest).
+Die von Joule Studio vorgeschlagene Form `bs/+/…/v1/>` mischt MQTT (`+`) mit
+SMF (`>`) und ist so ungültig. Bei MQTT (Port 8883): `…/v1/#`. Bei SMF/AMQP:
+durchgängig `bs/*/…/v1/>`.
 
-| Parameter | Wert |
-|-----------|------|
-| Base URL / Task-Ausführung | `https://3ccef423-ce1a19a1.joule-stg-eu12.c.run.ai.cloud.sap/` (POST, JSON-RPC) |
-| Agent Discovery | `GET /.well-known/agent.json` (ebenfalls JWT-geschützt) |
-| Token-URL | `https://a4w58gs3j.accounts400.ondemand.com/oauth2/token` |
-| Gateway Host | `eu12.access.sapdas.cloud.sap` |
+**b) `main.py`:** MQTT-Subscriber als Daemon-Thread parallel zum HTTP-Server
+starten. Fertige Referenz-Implementierung (spiegelt die bewährte Sensor-Verbindung):
+[`joule_agent_subscriber_reference.py`](joule_agent_subscriber_reference.py) —
+`start_subscriber()` vor `app.run(...)` aufrufen.
 
-**Alternative (falls der Agent später einen einfachen Webhook-Trigger bekommt):
-Webhook via REST Delivery Point (RDP)** — der Broker pusht jeden Alarm
-als HTTP POST an einen Endpoint des Agents. Setup im Solace Cloud **Broker Manager**:
+**c) Optional — Durable Queue statt direkter Topic-Subscription.** Bei direkter
+Topic-Subscription verliert der Agent Alarme, während er offline ist. Robuster:
+eine Queue (`Q.JOULE.ALARMS`) mit Topic-Abo `bs/*/mv/transformer/powerline/alarmRaised/v1/>`
+im Broker Manager anlegen und den Agent aus der Queue konsumieren lassen (AMQP,
+Port 5671). Für Live-Demos reicht die direkte Subscription.
+
+---
+
+### Fallback-Wege (nicht aktiv, nur zur Referenz)
+
+<details>
+<summary>A2A-Bridge (<code>joule_bridge.py</code>) — falls der Agent NICHT selbst subscriben soll</summary>
+
+Externer Python-Service, der Alarme abonniert, ein OAuth-Token holt und den Agent
+per A2A von außen aufruft. Braucht Client-ID/Secret aus dem BTP-Binding des
+Agent-Gateways. Start: `JOULE_CLIENT_ID=... JOULE_CLIENT_SECRET=... python3 joule_bridge.py`.
+Agent-URL `https://3ccef423-ce1a19a1.joule-stg-eu12.c.run.ai.cloud.sap/`,
+Token-URL `https://a4w58gs3j.accounts400.ondemand.com/oauth2/token`.
+
+</details>
+
+<details>
+<summary>REST Delivery Point (RDP) — falls der Agent einen einfachen Webhook-Trigger bekommt</summary>
+
+Der Broker pusht jeden Alarm als HTTP POST an einen Endpoint des Agents.
+Setup im Solace Cloud **Broker Manager**:
 
 1. **Queue anlegen:** `Q.JOULE.ALARMS` (exclusive, respect TTL optional)
 2. **Topic-Subscription auf die Queue:** `bs/*/mv/transformer/powerline/alarmRaised/>` *(SMF-Syntax)*
@@ -199,15 +229,17 @@ als HTTP POST an einen Endpoint des Agents. Setup im Solace Cloud **Broker Manag
 **Alternative: AMQP 1.0** (Port 5671) — falls die Agent-Seite lieber selbst konsumiert,
 z.B. über eine Middleware. Queue `Q.JOULE.ALARMS` kann identisch genutzt werden.
 
+</details>
+
+---
+
 **Stand der Integration:**
-- [x] Endpoint-URL des Joule Agents (verifiziert erreichbar, `401 Invalid JWT` ohne Token)
-- [x] Protokoll geklärt: A2A (JSON-RPC, POST /) mit OAuth → Zustellung über `joule_bridge.py`
-- [x] Token-Endpoint bekannt (IAS, siehe Tabelle oben)
-- [ ] Client-ID + Client-Secret besorgen — liegen im BTP-Subaccount des
-      Joule-Studio-Betreibers (Kollege): BTP Cockpit → Subaccount →
-      Instances & Subscriptions → Service `joule-agent-gateway` (oder
-      `sap-agent-gateway`) → Bindings → Credentials (`clientid`, `clientsecret`)
-- [ ] End-to-End-Test: Sensor-Alarm → Bridge → Agent → agentActionTaken im Dashboard
+- [x] Architektur: Agent subscribed selbst am Mesh (Pro-Code MQTT-Subscriber)
+- [x] Referenz-Subscriber `joule_agent_subscriber_reference.py` (offline getestet)
+- [x] asset.yaml-Werte + Wildcard-Syntax dokumentiert
+- [ ] Subscriber in die Agent-`main.py` übernehmen und `start_subscriber()` aufrufen
+- [ ] `A2A_LOCAL_URL` auf den tatsächlichen lokalen Port des Agents setzen
+- [ ] End-to-End-Test: Sensor-Alarm → Agent-Subscriber → agentActionTaken im Dashboard
 - [ ] Finale Liste der `decision`-Werte, sobald der Use Case geschärft ist
 
 ---
