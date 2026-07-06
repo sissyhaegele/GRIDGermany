@@ -83,8 +83,9 @@ echo ""
 for i in $(seq 0 $((COUNT - 1))); do
     SENSOR_ID="${ALL_SENSORS[$i]}"
     SENSOR_ID="$SENSOR_ID" python3 remote_controlled_sensor.py --autostart > /dev/null 2>&1 &
-    PIDS+=($!)
-    echo "  ✅ $SENSOR_ID gestartet (PID: ${PIDS[-1]})"
+    pid=$!
+    PIDS+=($pid)
+    echo "  ✅ $SENSOR_ID gestartet (PID: $pid)"
     sleep 0.1
 done
 
