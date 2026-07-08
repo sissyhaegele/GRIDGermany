@@ -13,10 +13,10 @@ servers:
     url: mr-connection-gu0w0pjgchg.messaging.solace.cloud
     protocol: smf
     description: >
-      SAP AEM broker, Message VPN "germangrid_berlin". Alarm delivery to the
-      agent happens via REST Delivery Point (webhook push); the agent replies
-      via REST Messaging on port 9443. AMQP 1.0 on port 5671 is available as
-      an alternative consumption path.
+      SAP AEM broker, Message VPN "germangrid_berlin". The agent subscribes to
+      alarmRaised itself via SMF (tcps 55443, basic auth) and replies via REST
+      Messaging on port 9443. No version segment in topics — versioning is owned
+      by the Event Portal. Wildcards are SMF-native (* and >), not MQTT (+ / #).
 
 channels:
   bs/{district}/mv/transformer/powerline/alarmRaised/{sensorId}:
