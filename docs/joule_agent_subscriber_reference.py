@@ -17,6 +17,11 @@ Warum lokal (localhost) statt über das Gateway?
   Aktion "Publish Agent Action" (agentActionTaken via REST 9443).
 
 Dependency: pip install solace-pubsubplus
+(liegt als manylinux-Wheel für x86_64/aarch64 vor, kein Alpine/musl nötig —
+ auf PyPI geprüft: solace_pubsubplus-1.11.0-py36-none-manylinux_2_17_aarch64.whl
+ etc. existieren. Ein stiller Import-Fehler ist auf normalen glibc-Containern
+ (Debian/Ubuntu-Basis) also unwahrscheinlich; siehe STATUS/get_status() unten,
+ um es für die tatsächliche Laufzeitumgebung zu verifizieren statt zu raten.)
 
 asset.yaml (Environment):
   SOLACE_HOST=tcps://mr-connection-gu0w0pjgchg.messaging.solace.cloud:55443
@@ -25,18 +30,44 @@ asset.yaml (Environment):
   SOLACE_PASSWORD=<demo-passwort>
   SOLACE_SUBSCRIBE_TOPIC=bs/*/mv/transformer/powerline/alarmRaised/*
   A2A_LOCAL_URL=http://localhost:8080/          # lokaler A2A-Endpoint des Agents
+
+main.py: Health-Endpoint für Verifikation ohne Zugriff auf Runtime-Logs, z.B.:
+
+  from grid_subscriber import start_subscriber, get_status
+  start_subscriber()
+  @app.route("/health/subscriber")
+  def subscriber_health():
+      return jsonify(get_status())
+
+  # get_status() liefert sofort (auch vor dem ersten Connect-Versuch), ob der
+  # solace-pubsubplus-Import geklappt hat, ob der SMF-Client aktuell verbunden
+  # ist, den letzten Fehler und Plattform-Diagnostik (Python/OS/libc).
 """
 
 import json
+import logging
 import os
+import platform
+import sys
 import threading
 import time
+import traceback
 import urllib.request
 import uuid
+from datetime import datetime, timezone
 
-from solace.messaging.messaging_service import MessagingService
-from solace.messaging.resources.topic_subscription import TopicSubscription
-from solace.messaging.receiver.message_receiver import MessageHandler
+logger = logging.getLogger("grid-subscriber")
+
+try:
+    from solace.messaging.messaging_service import MessagingService
+    from solace.messaging.resources.topic_subscription import TopicSubscription
+    from solace.messaging.receiver.message_receiver import MessageHandler
+    _IMPORT_ERROR = None
+except Exception as e:  # ImportError bei fehlendem Paket, OSError bei fehlender nativer Lib
+    MessagingService = None
+    TopicSubscription = None
+    MessageHandler = object  # Platzhalter, damit _AlarmHandler(MessageHandler) unten nicht crasht
+    _IMPORT_ERROR = e
 
 # ---- Konfiguration aus dem Environment (asset.yaml) ----
 # SMF/TLS-Endpoint der Solace Cloud (tcps, Port 55443). Der Broker nutzt ein
@@ -52,6 +83,32 @@ SUBSCRIBE_TOPIC = os.getenv('SOLACE_SUBSCRIBE_TOPIC',
 # Lokaler A2A-Endpoint des Agents im selben Container (kein Auth nötig)
 A2A_LOCAL_URL = os.getenv('A2A_LOCAL_URL', 'http://localhost:8080/')
 A2A_METHOD = os.getenv('JOULE_A2A_METHOD', 'message/send')
+
+# Sofort beim Modul-Import gefüllt (nicht erst nach dem ersten Connect-Versuch),
+# damit main.py den Stand auch dann per Health-Endpoint zeigen kann, wenn
+# start_subscriber() noch nicht oder nie erfolgreich verbunden hat.
+STATUS = {
+    'import_ok': _IMPORT_ERROR is None,
+    'connected': False,
+    'subscribed_topic': SUBSCRIBE_TOPIC,
+    'last_error': None if _IMPORT_ERROR is None else f'{type(_IMPORT_ERROR).__name__}: {_IMPORT_ERROR}',
+    'last_error_at': None,
+    'diagnostics': {
+        'python': sys.version.split()[0],
+        'platform': platform.platform(),
+        'libc': platform.libc_ver(),  # ('glibc', 'x.xx') oder ('', '') falls nicht erkennbar (z.B. musl/Alpine)
+    },
+}
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def get_status() -> dict:
+    """Für einen Health-Endpoint in main.py: aktueller Subscriber-Status,
+    ohne dass Runtime-Logs zugänglich sein müssen."""
+    return dict(STATUS)
 
 
 def invoke_agent(alarm: dict):
@@ -99,6 +156,19 @@ class _AlarmHandler(MessageHandler):
 
 
 def _run():
+    if _IMPORT_ERROR is not None:
+        # Kein Retry hier: ein fehlendes/kaputtes Paket behebt sich nicht durch
+        # Warten. Laut und wiederholt loggen statt still zu bleiben, damit der
+        # Ausfall in den Logs auffällt statt als unauffällig hängender Agent.
+        logger.error(
+            "[grid-subscriber] solace-pubsubplus Import fehlgeschlagen: %s. "
+            "SMF-Subscriber ist DEAKTIVIERT, Agent reagiert nicht auf Broker-Events. "
+            "Diagnostik: python=%s platform=%s libc=%s",
+            STATUS['last_error'], STATUS['diagnostics']['python'],
+            STATUS['diagnostics']['platform'], STATUS['diagnostics']['libc'],
+        )
+        return
+
     while True:
         try:
             service = MessagingService.builder().from_properties({
@@ -114,6 +184,8 @@ def _run():
                 .build()
             receiver.start()
             receiver.receive_async(_AlarmHandler())
+            STATUS['connected'] = True
+            STATUS['last_error'] = None
             print(f"[grid-subscriber] connected, subscribed to {SUBSCRIBE_TOPIC}")
 
             # Thread am Leben halten, während der Receiver asynchron zustellt.
@@ -122,7 +194,11 @@ def _run():
             # reconnected intern selbst (Default Retry Strategy).
             threading.Event().wait()
         except Exception as e:
+            STATUS['connected'] = False
+            STATUS['last_error'] = f'{type(e).__name__}: {e}'
+            STATUS['last_error_at'] = _now_iso()
             print(f"[grid-subscriber] connection error: {e}, retry in 5s")
+            logger.debug("connection error detail:\n%s", traceback.format_exc())
             time.sleep(5)
 
 
@@ -133,8 +209,11 @@ def start_subscriber():
 
 # In der main.py des Agents:
 #
-#   from grid_subscriber import start_subscriber
+#   from grid_subscriber import start_subscriber, get_status
 #   start_subscriber()          # VOR / parallel zum HTTP-Server starten
+#   @app.route("/health/subscriber")
+#   def subscriber_health():
+#       return jsonify(get_status())
 #   app.run(host="0.0.0.0", port=8080)
 #
 if __name__ == '__main__':

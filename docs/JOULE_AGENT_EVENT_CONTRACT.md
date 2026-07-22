@@ -9,7 +9,7 @@ und dem Joule Agent (gebaut in Joule Studio).
 ## 1. Architektur-Überblick
 
 Der Agent ist ein **Pro-Code-Agent** und lauscht **selbst** am Event Mesh
-(MQTT-Subscriber in seiner `main.py`, parallel zum HTTP-/A2A-Server). Er zieht
+(SMF-Subscriber in seiner `main.py`, parallel zum HTTP-/A2A-Server). Er zieht
 die Alarme also aktiv — kein Push, kein Gateway, kein JWT auf dem Hinweg.
 
 ```
@@ -162,7 +162,7 @@ bis zur tatsächlichen Aktion.
 
 ## 5. Zustellung der Alarme an den Agent
 
-**Aktueller Weg: Der Agent subscribed selbst (Pro-Code, MQTT-Subscriber in `main.py`).**
+**Aktueller Weg: Der Agent subscribed selbst (Pro-Code, SMF-Subscriber in `main.py`).**
 Kein Broker-seitiges Setup nötig, keine Bridge, kein OAuth/JWT auf dem Hinweg —
 der Agent meldet sich mit den Solace-Messaging-Credentials am Broker an und lauscht.
 
@@ -183,10 +183,25 @@ genau eine Ebene, also `…/alarmRaised/*` (nicht das gierige `…/alarmRaised/>
 Die von Joule Studio vorgeschlagene Form `bs/+/…/>` mischte MQTT und SMF und
 war ungültig. Das Dashboard subscribed bereits SMF-nativ mit `*`.
 
-**b) `main.py`:** MQTT-Subscriber als Daemon-Thread parallel zum HTTP-Server
+**b) `main.py`:** SMF-Subscriber als Daemon-Thread parallel zum HTTP-Server
 starten. Fertige Referenz-Implementierung (spiegelt die bewährte Sensor-Verbindung):
 [`joule_agent_subscriber_reference.py`](joule_agent_subscriber_reference.py) —
 `start_subscriber()` vor `app.run(...)` aufrufen.
+
+**Verifikation ohne Zugriff auf Runtime-Logs:** Die Referenz-Implementierung
+exportiert `get_status()` (Import-Status, Connect-Status, letzter Fehler,
+Python/OS/libc-Diagnostik). In `main.py` als `/health/subscriber`-Route
+einhängen und von außen abfragen — damit lässt sich zweifelsfrei feststellen,
+ob der SMF-Thread verbunden ist, statt es zu vermuten.
+
+> Hinweis aus einer früheren Debugging-Session: Die Annahme "solace-pubsubplus
+> hat nur eine musllinux-Wheel, schlägt auf glibc-Containern (Debian/Ubuntu)
+> also beim Import fehl" wurde geprüft und ist **falsch** — Version 1.11.0
+> liefert `manylinux_2_12_x86_64`- und `manylinux_2_17_aarch64`-Wheels mit,
+> die auf jedem gängigen glibc-Container greifen. Ein Import-Fehler ist damit
+> nur bei einem Alpine/musl-Basis-Image oder falscher Python-Version zu
+> erwarten — vor einer Architekturänderung (z.B. Umstieg auf MQTT) erst über
+> `get_status()` verifizieren, welcher Fall tatsächlich vorliegt.
 
 **c) Optional — Durable Queue statt direkter Topic-Subscription.** Bei direkter
 Topic-Subscription verliert der Agent Alarme, während er offline ist. Robuster:
@@ -234,11 +249,13 @@ z.B. über eine Middleware. Queue `Q.JOULE.ALARMS` kann identisch genutzt werden
 ---
 
 **Stand der Integration:**
-- [x] Architektur: Agent subscribed selbst am Mesh (Pro-Code MQTT-Subscriber)
+- [x] Architektur: Agent subscribed selbst am Mesh (Pro-Code SMF-Subscriber)
 - [x] Referenz-Subscriber `joule_agent_subscriber_reference.py` (offline getestet)
 - [x] asset.yaml-Werte + Wildcard-Syntax dokumentiert
+- [x] Health-Endpoint (`get_status()`) für Import-/Connect-Verifikation ohne Log-Zugriff
 - [ ] Subscriber in die Agent-`main.py` übernehmen und `start_subscriber()` aufrufen
 - [ ] `A2A_LOCAL_URL` auf den tatsächlichen lokalen Port des Agents setzen
+- [ ] Über `/health/subscriber` verifizieren: `import_ok` und `connected` = `true`
 - [ ] End-to-End-Test: Sensor-Alarm → Agent-Subscriber → agentActionTaken im Dashboard
 - [ ] Finale Liste der `decision`-Werte, sobald der Use Case geschärft ist
 
