@@ -1365,11 +1365,21 @@
                 
                 session.on(solace.SessionEventCode.MESSAGE, (message) => {
                     try {
-                        // MQTT publishes arrive as binary attachment, REST publishes
-                        // (e.g. from the Joule agent) as SDT text message
+                        // MQTT publishes arrive as binary attachment; REST / SAM
+                        // agent publishes arrive as an SDT text message.
                         const sdt = message.getSdtContainer && message.getSdtContainer();
-                        const payload = sdt ? sdt.getValue() : message.getBinaryAttachment();
-                        const data = JSON.parse(payload);
+                        let payload = sdt ? sdt.getValue() : message.getBinaryAttachment();
+                        // getBinaryAttachment() returns raw bytes as a latin1 string;
+                        // re-decode as UTF-8 so ü/ö/ä/ß and → survive. Harmless no-op
+                        // (throws → caught) for already-correct strings.
+                        try { payload = decodeURIComponent(escape(payload)); } catch (e) {}
+                        let data = JSON.parse(payload);
+                        // SAM publishes the agent's JSON as an escaped string
+                        // ("{\"actionId\":...}"), so a first parse yields a string.
+                        // Parse once more to reach the actual object.
+                        if (typeof data === 'string') {
+                            data = JSON.parse(data);
+                        }
                         const topic = message.getDestination().getName();
 
                         if (topic.includes('/agentActionTaken/')) {
@@ -1379,7 +1389,7 @@
 
                         if (topic.includes('/alarmRaised/')) {
                             addLog(`🚨 ALARM [${(data.severity || '?').toUpperCase()}] ${data.sensorId}: ` +
-                                   `${data.alarmType} = ${data.value}${data.unit || ''} → Joule Agent`, 'anomaly');
+                                   `${data.alarmType} = ${data.value}${data.unit || ''} → Grid Incident Agent`, 'anomaly');
                             return;
                         }
 
