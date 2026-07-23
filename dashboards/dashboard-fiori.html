@@ -749,6 +749,16 @@
             overflow-y: auto;
             padding: 8px 0;
         }
+
+        /* Collapsed event log: hide the entries, keep header + counters visible */
+        .log-section.collapsed .log-content {
+            display: none;
+        }
+        #logChevron {
+            display: inline-block;
+            width: 1em;
+            color: var(--sapNeutralColor);
+        }
         
         .log-entry {
             padding: 8px 16px;
@@ -1016,28 +1026,28 @@
             </div>
         </div>
         
-        <!-- Sensor Cards -->
-        <div class="sensor-section">
-            <div class="section-title">Active Sensors</div>
-            <div class="sensor-grid" id="sensorGrid">
-                <!-- Sensor cards will be added dynamically -->
-            </div>
-        </div>
-        
-        <!-- Joule Agent Actions -->
+        <!-- Grid Incident Agent — decisions (the highlight) -->
         <div class="agent-section">
-            <div class="section-title">Joule Agent Actions</div>
+            <div class="section-title">Grid Incident Agent</div>
             <div class="agent-list" id="agentActions">
                 <div class="agent-empty" id="agentEmpty">
-                    Warte auf Agent-Entscheidungen … (Topic: bs/*/mv/transformer/powerline/agentActionTaken/*)
+                    Warte auf Agent-Entscheidungen …
                 </div>
+            </div>
+        </div>
+
+        <!-- Sensor Cards -->
+        <div class="sensor-section">
+            <div class="section-title">Aktive Sensoren</div>
+            <div class="sensor-grid" id="sensorGrid">
+                <!-- Sensor cards will be added dynamically -->
             </div>
         </div>
 
         <!-- Event Log -->
         <div class="log-section">
-            <div class="log-header">
-                <div class="log-title">Event Stream</div>
+            <div class="log-header" onclick="toggleLog()" style="cursor: pointer;">
+                <div class="log-title"><span id="logChevron">▾</span> Event-Log</div>
                 <div class="log-stats">
                     <span><span class="log-stat-value" id="liveEventRate">0</span> events/sec</span>
                     <span>Total: <span class="log-stat-value" id="totalEvents">0</span></span>
@@ -1297,6 +1307,13 @@
                 log.removeChild(log.lastChild);
             }
         }
+
+        function toggleLog() {
+            const s = document.querySelector('.log-section');
+            s.classList.toggle('collapsed');
+            document.getElementById('logChevron').textContent =
+                s.classList.contains('collapsed') ? '▸' : '▾';
+        }
         
         // ═══════════════════════════════════════════════════════════════
         // SOLACE SMF CONNECTION
@@ -1403,15 +1420,14 @@
                             const isAnomaly = data.status === 'anomaly';
                             updateSensor(sensorId, data);
                             
-                            const m = data.metrics;
-                            const logMsg = `${sensorId}: ${m.voltage.toFixed(0)}V | ${m.frequency.toFixed(2)}Hz | ${m.load.toFixed(0)}% | ${m.temperature.toFixed(0)}°C`;
-                            
+                            // Nur bedeutsame Events loggen — normale Telemetrie
+                            // aktualisiert nur Kacheln/KPIs, flutet aber nicht den Log.
                             if (isNew) {
-                                addLog(`New sensor: ${sensorId} (${getDistrictName(sensorId)})`, 'info');
+                                addLog(`Neuer Sensor: ${sensorId} (${getDistrictName(sensorId)})`, 'info');
                             } else if (isAnomaly) {
-                                addLog(`${logMsg} - ANOMALY DETECTED`, 'anomaly');
-                            } else {
-                                addLog(logMsg, 'normal');
+                                const m = data.metrics;
+                                addLog(`${sensorId}: ${m.voltage.toFixed(0)}V | ${m.frequency.toFixed(2)}Hz | ` +
+                                       `${m.load.toFixed(0)}% | ${m.temperature.toFixed(0)}°C — ANOMALIE`, 'anomaly');
                             }
                         }
                     } catch (e) {
