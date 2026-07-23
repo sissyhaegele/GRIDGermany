@@ -89,6 +89,9 @@ class RemoteControlledSensor:
 
         # Rolling window of recent readings - sent as context with alarms
         self.metrics_history = deque(maxlen=10)
+
+        # Active anomaly event (spike cooldown or gradual ramp), or None
+        self.event = None
         
         # Location
         loc = DISTRICT_LOCATIONS.get(self.district, DISTRICT_LOCATIONS['mitte'])
@@ -332,12 +335,11 @@ class RemoteControlledSensor:
     
     def _send_sensor_data(self):
         """Generate and publish sensor data"""
-        new_anomaly_type = None  # set only on the tick an anomaly starts
+        new_anomaly_type = None  # metric whose alarm fires THIS tick
 
-        # Check if we're in anomaly cooldown
-        if hasattr(self, 'anomaly_ticks') and self.anomaly_ticks > 0:
-            self.anomaly_ticks -= 1
-            is_anomaly = True
+        if self.event:
+            # A spike cooldown or a gradual ramp is in progress
+            is_anomaly, new_anomaly_type = self._advance_event()
         else:
             # Normal value drift with recovery
             if self.voltage < 220 or self.voltage > 240:
@@ -345,49 +347,31 @@ class RemoteControlledSensor:
             else:
                 self.voltage += random.uniform(-0.5, 0.5)
             self.voltage = max(210, min(250, self.voltage))
-            
+
             if self.frequency < 49.95 or self.frequency > 50.05:
                 self.frequency = random.uniform(49.98, 50.02)
             else:
                 self.frequency += random.uniform(-0.01, 0.01)
             self.frequency = max(49.80, min(50.20, self.frequency))
-            
+
             if self.load > 85:
                 self.load = random.uniform(50, 70)
             else:
                 self.load += random.uniform(-2, 2)
             self.load = max(30, min(100, self.load))
-            
+
             self.power = 50 + (self.load * 1.5) + random.uniform(-5, 5)
-            
+
             if self.temperature > 60:
                 self.temperature = random.uniform(40, 55)
             else:
                 self.temperature += random.uniform(-0.5, 0.5)
             self.temperature = max(30, min(85, self.temperature))
-            
-            # Anomaly simulation (~3% chance)
+
+            # Start an anomaly event: spike (abrupt) or ramp (gradual trend)
             is_anomaly = False
-            
-            if random.random() < 0.03:
-                anomaly_type = random.choice(['voltage', 'frequency', 'load', 'temperature'])
-                is_anomaly = True
-                new_anomaly_type = anomaly_type
-                self.anomaly_ticks = 2
-                
-                if anomaly_type == 'voltage':
-                    self.voltage = random.choice([random.uniform(210, 218), random.uniform(242, 250)])
-                    print(f"⚡ VOLTAGE ANOMALY! {self.voltage:.1f}V")
-                elif anomaly_type == 'frequency':
-                    self.frequency = random.choice([random.uniform(49.80, 49.92), random.uniform(50.08, 50.20)])
-                    print(f"〰️ FREQUENCY ANOMALY! {self.frequency:.2f}Hz")
-                elif anomaly_type == 'load':
-                    self.load = random.uniform(88, 98)
-                    self.power = 50 + (self.load * 1.5)
-                    print(f"📈 LOAD ANOMALY! {self.load:.1f}%")
-                elif anomaly_type == 'temperature':
-                    self.temperature = random.uniform(65, 80)
-                    print(f"🔥 TEMPERATURE SPIKE! {self.temperature:.1f}°C")
+            if random.random() < self.ANOMALY_CHANCE:
+                is_anomaly, new_anomaly_type = self._start_event()
         
         status = 'anomaly' if is_anomaly else 'normal'
         
@@ -444,6 +428,9 @@ class RemoteControlledSensor:
         if new_anomaly_type:
             self._publish_alarm(new_anomaly_type)
 
+    # Probability per idle tick that a new anomaly event begins
+    ANOMALY_CHANCE = 0.03
+
     # Alarm thresholds: (warning, critical) limits per metric.
     # Values beyond 'critical' → severity critical, beyond 'warning' → warning.
     ALARM_THRESHOLDS = {
@@ -491,6 +478,101 @@ class RemoteControlledSensor:
                   f"→ {self.alarm_topic}")
         except Exception as e:
             print(f"❌ Alarm publish error: {e}")
+
+    # ============================================
+    # ANOMALY EVENTS (spike + ramp)
+    # ============================================
+
+    def _beyond(self, metric, value, level):
+        """True if value violates the given threshold level ('warning'|'critical')."""
+        cfg = self.ALARM_THRESHOLDS[metric]
+        if 'nominal' in cfg:
+            return abs(value - cfg['nominal']) >= cfg[level]
+        return value >= cfg[level]
+
+    def _start_event(self):
+        """Begin an anomaly. Returns (is_anomaly_now, alarm_metric_or_None).
+        50% ramp (gradual → dispatch/escalate), 50% spike (abrupt → restart/monitor)."""
+        return self._start_ramp() if random.random() < 0.5 else self._start_spike()
+
+    def _start_ramp(self):
+        """Gradual climb over several ticks so recentMetrics shows a real trend.
+        temperature/load ramp → dispatch_technician; voltage/frequency ramp → escalate.
+        The alarm fires later, when the value crosses its critical threshold."""
+        metric = random.choice(['temperature', 'load', 'voltage', 'frequency'])
+        dur = random.randint(6, 9)
+        if metric == 'temperature':
+            target, start = random.uniform(74, 82), self.temperature
+        elif metric == 'load':
+            target, start = random.uniform(93, 99), self.load
+        elif metric == 'voltage':
+            target = random.choice([random.uniform(210, 214), random.uniform(246, 250)])
+            start = self.voltage
+        else:  # frequency
+            target = random.choice([random.uniform(49.80, 49.88), random.uniform(50.12, 50.20)])
+            start = self.frequency
+        self.event = {'mode': 'ramp', 'metric': metric, 'target': target,
+                      'step': (target - start) / dur, 'ticks_left': dur, 'fired': False}
+        print(f"📈 RAMP {metric} → {target:.2f} ({dur} Ticks)")
+        return False, None  # looks normal until it crosses the threshold
+
+    def _start_spike(self):
+        """Abrupt outlier with no lead-up.
+        hard temp/load spike → restart_sensor; mild warning-level outlier → monitor."""
+        if random.random() < 0.5:
+            metric = random.choice(['temperature', 'load'])
+            if metric == 'temperature':
+                self.temperature = random.uniform(72, 82); v = self.temperature
+            else:
+                self.load = random.uniform(93, 98); self.power = 50 + self.load * 1.5; v = self.load
+            self.event = {'mode': 'spike', 'ticks_left': 2}
+            print(f"🔥 HARD {metric.upper()} SPIKE! {v:.1f}")
+        else:
+            metric = random.choice(['voltage', 'frequency', 'load', 'temperature'])
+            if metric == 'voltage':
+                self.voltage = random.choice([random.uniform(216, 219), random.uniform(241, 244)]); v = self.voltage
+            elif metric == 'frequency':
+                self.frequency = random.choice([random.uniform(49.90, 49.94), random.uniform(50.06, 50.10)]); v = self.frequency
+            elif metric == 'load':
+                self.load = random.uniform(86, 91); self.power = 50 + self.load * 1.5; v = self.load
+            else:
+                self.temperature = random.uniform(61, 68); v = self.temperature
+            self.event = {'mode': 'spike', 'ticks_left': 1}
+            print(f"• MILD {metric.upper()} outlier {v:.2f}")
+        return True, metric
+
+    def _advance_event(self):
+        """Progress the active event by one tick. Returns (is_anomaly, alarm_metric_or_None)."""
+        ev = self.event
+        if ev['mode'] == 'spike':
+            ev['ticks_left'] -= 1
+            if ev['ticks_left'] <= 0:
+                self.event = None
+            return True, None
+
+        # ramp: step the metric toward its target, keep correlated metrics plausible
+        metric = ev['metric']
+        setattr(self, metric, getattr(self, metric) + ev['step'])
+        if metric == 'temperature':
+            self.load = min(100, self.load + random.uniform(1.0, 2.5))   # heat ↔ load
+        elif metric == 'load':
+            self.temperature = min(88, self.temperature + random.uniform(0.8, 1.8))
+        self.power = 50 + self.load * 1.5
+        # keep everything in sane bounds
+        self.voltage = max(205, min(255, self.voltage))
+        self.frequency = max(49.5, min(50.5, self.frequency))
+        self.load = max(30, min(100, self.load))
+        self.temperature = max(30, min(90, self.temperature))
+
+        fire, is_anom = None, ev['fired']
+        if not ev['fired'] and self._beyond(metric, getattr(self, metric), 'critical'):
+            ev['fired'] = True
+            fire, is_anom = metric, True
+
+        ev['ticks_left'] -= 1
+        if ev['ticks_left'] <= 0:
+            self.event = None
+        return is_anom, fire
 
     def disconnect(self):
         """Clean disconnect from broker"""
