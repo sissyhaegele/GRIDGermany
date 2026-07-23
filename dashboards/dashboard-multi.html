@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BS GRID Dashboard - Multi-Sensor (SMF)</title>
+    <script src="config.js"></script>
     <script src="solclient-full.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <style>
@@ -501,10 +502,10 @@
         // SOLACE SMF CONFIGURATION
         // ═══════════════════════════════════════════════════════════════
         const CONFIG = {
-            url: 'wss://mr-connection-gu0w0pjgchg.messaging.solace.cloud:443',
-            vpn: 'germangrid_berlin',
-            username: 'solace-cloud-client',
-            password: 'iejmgp94muv7m5ahsfe9b50dvb'
+            url: `wss://${window.SOLACE_CONFIG.host}:443`,
+            vpn: window.SOLACE_CONFIG.vpn,
+            username: window.SOLACE_CONFIG.username,
+            password: window.SOLACE_CONFIG.password
         };
         
         // SMF Topic subscription with Solace wildcards (* instead of +)

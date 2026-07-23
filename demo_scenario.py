@@ -31,10 +31,11 @@ import sys
 import time
 from datetime import datetime, timedelta
 
-BROKER = os.getenv('SOLACE_HOST', 'mr-connection-gu0w0pjgchg.messaging.solace.cloud')
+import bs_env  # lädt config.env in os.environ
+BROKER = os.getenv('SOLACE_HOST')
 PORT = int(os.getenv('SOLACE_PORT', 8883))
-USERNAME = os.getenv('SOLACE_USERNAME', 'solace-cloud-client')
-PASSWORD = os.getenv('SOLACE_PASSWORD', 'iejmgp94muv7m5ahsfe9b50dvb')
+USERNAME = os.getenv('SOLACE_USERNAME')
+PASSWORD = os.getenv('SOLACE_PASSWORD')
 
 FIRST_DELAY = float(os.getenv('DEMO_FIRST_DELAY', '8'))
 GAP = float(os.getenv('DEMO_GAP', '70'))

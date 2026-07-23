@@ -1,3 +1,8 @@
+# Python-Broker-Config mit Credentials — nur config.env.example wird eingecheckt.
+# (dashboards/config.js wird eingecheckt: Netlify deployt daraus, und Dashboard-
+#  Credentials sind clientseitig ohnehin sichtbar.)
+config.env
+
 # Notification consumer mock output
 outbox/
 *.eml

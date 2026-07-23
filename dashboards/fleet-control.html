@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>GRIDGermany Fleet Control - 100 Sensors</title>
+    <script src="config.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/mqtt@5.3.4/dist/mqtt.min.js"></script>
     <style>
         * {
@@ -336,10 +337,10 @@
     <script>
         // Configuration - MQTT over WebSocket
         const CONFIG = {
-            broker: 'mr-connection-gu0w0pjgchg.messaging.solace.cloud',
+            broker: window.SOLACE_CONFIG.host,
             port: 8443,
-            username: 'solace-cloud-client',
-            password: 'iejmgp94muv7m5ahsfe9b50dvb'
+            username: window.SOLACE_CONFIG.username,
+            password: window.SOLACE_CONFIG.password
         };
         
         // All 100 Sensors - ROUND ROBIN order (matches start.sh exactly!)

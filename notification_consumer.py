@@ -44,10 +44,11 @@ from email.utils import formatdate, make_msgid
 # CONFIGURATION
 # ============================================
 
-BROKER = os.getenv('SOLACE_HOST', 'mr-connection-gu0w0pjgchg.messaging.solace.cloud')
+import bs_env  # lädt config.env in os.environ
+BROKER = os.getenv('SOLACE_HOST')
 PORT = int(os.getenv('SOLACE_PORT', 8883))
-USERNAME = os.getenv('SOLACE_USERNAME', 'solace-cloud-client')
-PASSWORD = os.getenv('SOLACE_PASSWORD', 'iejmgp94muv7m5ahsfe9b50dvb')
+USERNAME = os.getenv('SOLACE_USERNAME')
+PASSWORD = os.getenv('SOLACE_PASSWORD')
 
 # SMF-Wildcard '*' (eine Ebene) — konsistent mit Dashboard und SAM-Entrypoint,
 # kein MQTT '+'/'#'. Auf der MQTT-Schnittstelle akzeptiert Solace '*' NICHT als

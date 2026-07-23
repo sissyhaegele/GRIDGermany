@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>BS GRID Dashboard - SAP Fiori Style</title>
+    <script src="config.js"></script>
     <script src="solclient-full.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Source+Sans+Pro:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
@@ -1184,10 +1185,10 @@
         // SOLACE SMF CONFIGURATION
         // ═══════════════════════════════════════════════════════════════
         const CONFIG = {
-            url: 'wss://mr-connection-gu0w0pjgchg.messaging.solace.cloud:443',
-            vpn: 'germangrid_berlin',
-            username: 'solace-cloud-client',
-            password: 'iejmgp94muv7m5ahsfe9b50dvb'
+            url: `wss://${window.SOLACE_CONFIG.host}:443`,
+            vpn: window.SOLACE_CONFIG.vpn,
+            username: window.SOLACE_CONFIG.username,
+            password: window.SOLACE_CONFIG.password
         };
         
         const SUBSCRIPTION_TOPIC = 'bs/*/mv/transformer/powerline/statusUpdated/*';
