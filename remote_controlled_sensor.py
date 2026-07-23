@@ -429,12 +429,13 @@ class RemoteControlledSensor:
             self._publish_alarm(new_anomaly_type)
 
     # Probability per idle tick (≈ per second) that a NEW anomaly event begins,
-    # per sensor. Grid incidents are rare in reality, so keep this low — the
-    # fleet-wide rate scales with the number of sensors:
+    # per sensor. Each alarm triggers one agent (LLM) call, so keep this LOW to
+    # save credits. The fleet-wide rate scales with the number of sensors:
     #   rate ≈ ANOMALY_CHANCE × (number of sensors) alarms per second.
-    # Default 0.001 → e.g. ~1 alarm / 20 s with 50 sensors, ~1 / 40 s with 25.
-    # Tune per demo via env: SENSOR_ANOMALY_CHANCE=0.003 for a busier run.
-    ANOMALY_CHANCE = float(os.getenv('SENSOR_ANOMALY_CHANCE', '0.001'))
+    # Default 0.0003 → very sparse background (~1 alarm / 5-6 min with 10 sensors).
+    # Set 0 for NO random alarms (drive the demo purely via demo_scenario.py),
+    # or e.g. 0.003 for a busier, self-running demo.
+    ANOMALY_CHANCE = float(os.getenv('SENSOR_ANOMALY_CHANCE', '0.0003'))
 
     # Alarm thresholds: (warning, critical) limits per metric.
     # Values beyond 'critical' → severity critical, beyond 'warning' → warning.
