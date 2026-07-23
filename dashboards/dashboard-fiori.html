@@ -709,6 +709,107 @@
             color: var(--sapNeutralColor);
         }
 
+        .agent-card-hint {
+            margin-top: 8px;
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--sapInformativeColor, #0070f2);
+            opacity: 0;
+            transition: opacity 0.15s ease;
+        }
+        .agent-card:hover .agent-card-hint { opacity: 1; }
+
+        /* Drill-down detail modal */
+        .detail-modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.4);
+            display: none;
+            align-items: flex-start;
+            justify-content: flex-end;
+            z-index: 1000;
+        }
+        .detail-modal.open { display: flex; }
+        .detail-panel {
+            background: var(--sapBaseColor, #fff);
+            width: 420px;
+            max-width: 92vw;
+            height: 100%;
+            box-shadow: -4px 0 24px rgba(0, 0, 0, 0.18);
+            display: flex;
+            flex-direction: column;
+            animation: detailSlide 0.18s ease;
+        }
+        @keyframes detailSlide { from { transform: translateX(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+        .detail-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 18px;
+            font-weight: 600;
+            border-bottom: 1px solid var(--sapBorderColor);
+            background: #fafbfc;
+        }
+        .detail-close {
+            border: none;
+            background: none;
+            font-size: 22px;
+            line-height: 1;
+            cursor: pointer;
+            color: var(--sapNeutralColor);
+        }
+        .detail-body { padding: 18px; overflow-y: auto; }
+        .detail-decision {
+            display: inline-block;
+            font-size: 15px;
+            font-weight: 700;
+            padding: 6px 12px;
+            border-radius: 6px;
+            border-left: 4px solid var(--sapNeutralColor);
+            background: #f5f6f7;
+            margin-bottom: 8px;
+        }
+        .detail-decision.decision-dispatch_technician,
+        .detail-decision.decision-escalate { border-left-color: var(--sapErrorColor); }
+        .detail-decision.decision-restart_sensor { border-left-color: var(--sapWarningColor, #e9730c); }
+        .detail-decision.decision-monitor { border-left-color: var(--sapSuccessColor); }
+        .detail-section-title {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--sapNeutralColor);
+            margin: 16px 0 6px;
+        }
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 5px 0;
+            font-size: 13px;
+            border-bottom: 1px solid #f5f5f5;
+        }
+        .detail-row span:first-child { color: var(--sapNeutralColor); }
+        .detail-row span:last-child { font-weight: 600; text-align: right; }
+        .detail-reasoning {
+            font-size: 13px;
+            line-height: 1.55;
+            background: #fafbfc;
+            border-radius: 6px;
+            padding: 10px 12px;
+        }
+        .detail-note {
+            font-size: 12px;
+            color: var(--sapNeutralColor);
+            font-style: italic;
+        }
+        .detail-trend { margin-top: 4px; }
+        .detail-trend-scale {
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            color: var(--sapNeutralColor);
+        }
+
         /* Event Log */
         .log-section {
             background: var(--sapBaseColor);
@@ -1062,6 +1163,17 @@
         </div>
     </div>
     
+    <!-- Agent decision detail (drill-down) -->
+    <div class="detail-modal" id="detailModal" onclick="if(event.target===this)closeAgentDetail()">
+        <div class="detail-panel">
+            <div class="detail-header">
+                <span>Agent-Entscheidung — Details</span>
+                <button class="detail-close" onclick="closeAgentDetail()" aria-label="Schließen">×</button>
+            </div>
+            <div class="detail-body" id="detailBody"></div>
+        </div>
+    </div>
+
     <!-- Footer -->
     <div class="page-footer">
         BS GRID POC • Berliner Stadtwerke • SAP Advanced Event Mesh (Solace) • Real-Time Grid Monitoring
@@ -1108,6 +1220,7 @@
         let totalEvents = 0;
         let anomalyCount = 0;
         let eventTimestamps = [];
+        const alarmsById = {};   // alarmId → alarmRaised-Event (für Karten-Drill-down)
         
         // ═══════════════════════════════════════════════════════════════
         // HELPER FUNCTIONS
@@ -1405,6 +1518,7 @@
                         }
 
                         if (topic.includes('/alarmRaised/')) {
+                            if (data.alarmId) alarmsById[data.alarmId] = data;  // für Karten-Drill-down puffern
                             addLog(`🚨 ALARM [${(data.severity || '?').toUpperCase()}] ${data.sensorId}: ` +
                                    `${data.alarmType} = ${data.value}${data.unit || ''} → Grid Incident Agent`, 'anomaly');
                             return;
@@ -1477,18 +1591,101 @@
                 <div class="agent-sensor"></div>
                 <div class="agent-reasoning"></div>
                 <div class="agent-confidence"></div>
+                <div class="agent-card-hint">Details ansehen →</div>
             `;
             card.querySelector('.agent-decision').textContent = label;
             card.querySelector('.agent-time').textContent = time;
             card.querySelector('.agent-sensor').textContent =
-                `${data.sensorId || '?'} • ${data.agent || 'Joule Agent'} • Alarm ${data.alarmId || '?'}`;
+                `${data.sensorId || '?'} • ${data.agent || 'Grid Incident Agent'} • Alarm ${data.alarmId || '?'}`;
             card.querySelector('.agent-reasoning').textContent = data.reasoning || '';
             card.querySelector('.agent-confidence').textContent = confidence;
+
+            // Drill-down: Klick öffnet Detail-Panel mit Entscheidung + auslösendem Alarm
+            card.style.cursor = 'pointer';
+            card.addEventListener('click', () => openAgentDetail(data));
 
             list.prepend(card);
             while (list.children.length > 20) list.lastChild.remove();
 
             addLog(`🤖 Agent: ${label} für ${data.sensorId || '?'}`, 'anomaly');
+        }
+
+        // ═══════════════════════════════════════════════════════════════
+        // AGENT DECISION — DRILL-DOWN DETAIL PANEL
+        // ═══════════════════════════════════════════════════════════════
+        function openAgentDetail(decision) {
+            const alarm = alarmsById[decision.alarmId];   // ggf. undefined (Alarm nicht empfangen)
+            const label = DECISION_LABELS[decision.decision] || decision.decision || '—';
+            const conf = typeof decision.confidence === 'number'
+                ? `${Math.round(decision.confidence * 100)} %` : '—';
+            const params = decision.parameters || {};
+
+            const rows = (obj) => Object.entries(obj)
+                .map(([k, v]) => `<div class="detail-row"><span>${k}</span><span>${v}</span></div>`).join('');
+
+            let alarmHtml;
+            if (alarm) {
+                const thr = alarm.threshold || {};
+                const thrTxt = 'max' in thr ? `max ${thr.max}` :
+                    ('nominal' in thr ? `${thr.nominal} ± ${thr.maxDeviation}` : '—');
+                alarmHtml = `
+                    <div class="detail-section-title">Auslösender Alarm</div>
+                    ${rows({
+                        'Typ': alarm.alarmType, 'Wert': `${alarm.value} ${alarm.unit || ''}`,
+                        'Grenzwert': thrTxt, 'Severity': alarm.severity,
+                        'Bezirk': (alarm.location || {}).district || '—',
+                        'Alarm-ID': alarm.alarmId
+                    })}
+                    <div class="detail-section-title">Verlauf vor der Entscheidung (recentMetrics)</div>
+                    ${renderTrend(alarm)}
+                `;
+            } else {
+                alarmHtml = `<div class="detail-note">Der auslösende Alarm (${decision.alarmId || '?'})
+                    wurde nicht empfangen — er kam evtl. vor dem Verbinden des Dashboards.
+                    Es werden nur die Entscheidungsdaten angezeigt.</div>`;
+            }
+
+            document.getElementById('detailBody').innerHTML = `
+                <div class="detail-decision decision-${decision.decision}">${label}</div>
+                <div class="detail-section-title">Entscheidung des Agents</div>
+                ${rows({
+                    'Sensor': decision.sensorId || '—',
+                    'Konfidenz': conf,
+                    'Agent': decision.agent || '—',
+                    ...(params.priority ? {'Priorität': params.priority} : {}),
+                    ...(params.targetTeam ? {'Zielteam': params.targetTeam} : {})
+                })}
+                <div class="detail-section-title">Begründung</div>
+                <div class="detail-reasoning">${(decision.reasoning || '—')
+                    .replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</div>
+                ${alarmHtml}
+            `;
+            document.getElementById('detailModal').classList.add('open');
+        }
+
+        function closeAgentDetail() {
+            document.getElementById('detailModal').classList.remove('open');
+        }
+
+        // Kleines SVG-Balkendiagramm des betroffenen Messwerts über recentMetrics
+        function renderTrend(alarm) {
+            const metric = alarm.alarmType;
+            const pts = (alarm.recentMetrics || []).map(m => m[metric]).filter(v => typeof v === 'number');
+            if (pts.length < 2) return '<div class="detail-note">Kein Verlauf verfügbar.</div>';
+            const min = Math.min(...pts), max = Math.max(...pts), span = (max - min) || 1;
+            const W = 260, H = 70, n = pts.length, bw = W / n;
+            const bars = pts.map((v, i) => {
+                const h = 6 + ((v - min) / span) * (H - 14);
+                const last = i === n - 1;
+                return `<rect x="${(i * bw + 2).toFixed(1)}" y="${(H - h).toFixed(1)}"
+                    width="${(bw - 4).toFixed(1)}" height="${h.toFixed(1)}" rx="2"
+                    fill="${last ? 'var(--sapErrorColor)' : 'var(--sapInformativeColor,#0070f2)'}"></rect>`;
+            }).join('');
+            return `
+                <div class="detail-trend">
+                    <svg viewBox="0 0 ${W} ${H}" width="100%" height="${H}">${bars}</svg>
+                    <div class="detail-trend-scale"><span>${min.toFixed(1)}</span><span>${max.toFixed(1)} ${alarm.unit||''}</span></div>
+                </div>`;
         }
         
         function disconnect() {
