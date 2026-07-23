@@ -1,0 +1,10 @@
+# Notification consumer mock output
+outbox/
+*.eml
+
+# macOS
+.DS_Store
+
+# Python
+__pycache__/
+*.pyc
