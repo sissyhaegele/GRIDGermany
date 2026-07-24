@@ -22,10 +22,10 @@ Setup-Vorlage von Willem. Manifeste hier im Ordner.
      mit dem sich deine Apps am Proxy authentifizieren.
    - **`secrets.yaml` ist in .gitignore** und wird NICHT eingecheckt.
 
-2. **`apirule.yaml`** — `hosts:` steht auf dem Kurznamen `litellm-proxy`; der
-   volle Host ergibt sich aus **deinem** Kyma-Cluster-Domain (nicht Willems
-   `c-110a74e`). Endpoint danach:
-   `https://litellm-proxy.<dein-kyma-host>/`
+2. **`apirule.yaml`** — `hosts:` steht auf dem Kurznamen `litellm-proxy`; Kyma
+   baut daraus automatisch die volle Domain aus **deiner** Cluster-Domain.
+   Cluster-ID dieses Subaccounts: `c3d1a36`. Endpoint danach:
+   `https://litellm-proxy.c3d1a36.kyma.ondemand.com/`
 
 Ggf. **`configmap.yaml`** — `model_list` auf die Modelle beschränken, die in
 deinem AI Core tatsächlich **deployed** sind (siehe unten „Modelle prüfen").

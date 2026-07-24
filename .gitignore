@@ -17,3 +17,6 @@ outbox/
 # Python
 __pycache__/
 *.pyc
+
+# HAI (Hyperspace AI) — lokaler Key, NICHT einchecken. Vorlage: hai/.env.example
+hai/.env
