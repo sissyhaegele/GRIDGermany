@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: solace-agent-mesh
+  labels:
+    istio-injection: enabled
+    owner: i069808

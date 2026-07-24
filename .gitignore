@@ -3,6 +3,10 @@
 #  Credentials sind clientseitig ohnehin sichtbar.)
 config.env
 
+# LiteLLM proxy — echte Secrets (AI-Core-Credentials, Master-Key) NICHT einchecken.
+# Vorlage secrets.yaml.example wird eingecheckt.
+litellm-proxy/secrets.yaml
+
 # Notification consumer mock output
 outbox/
 *.eml

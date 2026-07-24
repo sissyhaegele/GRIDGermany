@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: litellm-config
+  namespace: solace-agent-mesh
+data:
+  config.yaml: |
+      model_list: 
+        - model_name: foundational--anthropic-claude-4.6-sonnet
+          litellm_params:
+            model: sap/anthropic--claude-4.6-sonnet
+        - model_name: foundational--anthropic-claude-4.7-opus
+          litellm_params:
+            model: sap/anthropic--claude-4.7-opus
+        - model_name: foundational--openai-gpt-5.5
+          litellm_params:
+            model: sap/gpt-5.5
