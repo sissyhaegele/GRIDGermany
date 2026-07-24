@@ -167,12 +167,31 @@ def _pct(conf):
         return '—'
 
 
+def _strip_code_fence(text):
+    """Entfernt einen Markdown-Codeblock-Zaun (```json … ```), falls das LLM
+    seine JSON-Antwort so verpackt. Gibt den inneren Text zurück."""
+    s = text.strip()
+    if s.startswith('```'):
+        s = s[3:]                      # führende ```
+        if s[:4].lower() == 'json':    # optionale Sprachangabe
+            s = s[4:]
+        end = s.rfind('```')
+        if end != -1:
+            s = s[:end]
+    return s.strip()
+
+
 def _parse_payload(raw_bytes):
-    """agentActionTaken robust parsen: SAM publiziert das JSON teils als
-    escaped String, teils direkt als Objekt — beides abfangen."""
+    """agentActionTaken robust parsen. SAM/das LLM publiziert die Entscheidung
+    in mehreren Formen — alle abfangen:
+      1. direktes JSON-Objekt
+      2. JSON-String, der JSON enthält (doppelt kodiert)
+      3. JSON-String mit ```json …```-Markdown-Fence (LLM-Ausgabe)
+    """
     data = json.loads(raw_bytes.decode())
+    # Fall 2/3: String, der noch echtes JSON enthält
     if isinstance(data, str):
-        data = json.loads(data)
+        data = json.loads(_strip_code_fence(data))
     return data
 
 
