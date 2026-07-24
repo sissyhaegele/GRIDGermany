@@ -69,6 +69,34 @@ GRIDGermany/
 | Sensors   | MQTT/TLS | 8883 |
 | Dashboard | SMF/WSS  | 443  |
 
+## 🤖 AI / LLM Integration
+
+Der **Grid Incident Agent** bewertet Alarme und entscheidet über die Reaktion
+(Techniker, Eskalation, Sensor-Neustart, Beobachten). Er läuft im **Solace
+Agent Mesh (SAM)** und nutzt ein LLM über einen OpenAI-kompatiblen Endpoint.
+
+Für den LLM-Zugang gibt es **zwei Wege** — beide sprechen dasselbe
+OpenAI-/LiteLLM-Protokoll, SAM sieht keinen Unterschied:
+
+| Weg | Ordner | Status | Wann |
+|-----|--------|--------|------|
+| **HAI (Hyperspace AI), lokaler Proxy** | [`hai/`](hai/) | ✅ **aktiv genutzt** | Endpoint `localhost:6655`, kein Deployment nötig |
+| **SAP AI Core via LiteLLM auf Kyma** | [`litellm-proxy/`](litellm-proxy/) | 🅿️ bereitgestellt, nicht aktiv | wenn der Proxy geteilt/serverseitig laufen soll (Team, Produktion) |
+
+Aktueller Datenfluss (alles lokal + Solace Cloud, **kein Kyma im Pfad**):
+
+```
+Alarm → SAP AEM/Solace → SAM-Agent → HAI-Proxy (localhost:6655) → Claude/GPT
+                              ↓
+                   agentActionTaken → notification_consumer.py → E-Mail (outbox/)
+```
+
+- SAM Custom-Provider: Endpoint `http://localhost:6655/litellm`, Model z.B.
+  `anthropic--claude-4.6-sonnet`. Details: [`hai/README.md`](hai/README.md).
+- Der Kyma-Cluster (`c3d1a36`) läuft, ist aber aktuell leer — der
+  `litellm-proxy/`-Weg ist dort noch **nicht** deployed.
+- Agent-Instructions & Event-Contract: [`docs/`](docs/).
+
 ## 🔧 Configuration
 
 Broker credentials in `remote_controlled_sensor.py` and dashboards:
