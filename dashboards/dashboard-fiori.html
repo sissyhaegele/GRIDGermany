@@ -1222,6 +1222,43 @@
         let anomalyCount = 0;
         let eventTimestamps = [];
         const alarmsById = {};   // alarmId → alarmRaised-Event (für Karten-Drill-down)
+        let recentDecisions = []; // letzte Agent-Entscheidungen (neueste zuerst), für Reload-Persistenz
+
+        // ── Reload-Persistenz: Verlauf im Browser (localStorage) sichern/wiederherstellen ──
+        const STORE_KEY = 'bsgrid_state';
+        const STORE_MAX = 20;
+        const STORE_TTL_MS = 6 * 60 * 60 * 1000;  // 6h — danach als veraltet verwerfen
+
+        function persistState() {
+            try {
+                const decs = recentDecisions.slice(0, STORE_MAX);
+                // nur Alarme behalten, die zu den gespeicherten Entscheidungen gehören
+                const ids = new Set(decs.map(d => d.alarmId).filter(Boolean));
+                const alarms = {};
+                ids.forEach(id => { if (alarmsById[id]) alarms[id] = alarmsById[id]; });
+                localStorage.setItem(STORE_KEY, JSON.stringify(
+                    { decisions: decs, alarms, anomalyCount, savedAt: Date.now() }));
+            } catch (e) { /* localStorage voll/deaktiviert → ignorieren */ }
+        }
+
+        function restoreState() {
+            try {
+                const raw = localStorage.getItem(STORE_KEY);
+                if (!raw) return;
+                const s = JSON.parse(raw);
+                if (!s.savedAt || Date.now() - s.savedAt > STORE_TTL_MS) {
+                    localStorage.removeItem(STORE_KEY); return;
+                }
+                Object.assign(alarmsById, s.alarms || {});
+                anomalyCount = s.anomalyCount || 0;
+                document.getElementById('anomalyCount').textContent = anomalyCount;
+                const decs = s.decisions || [];
+                // älteste zuerst einspielen, damit prepend die neueste oben zeigt
+                for (let i = decs.length - 1; i >= 0; i--) addAgentAction(decs[i], true);
+                recentDecisions = decs.slice(0, STORE_MAX);
+                if (decs.length) addLog(`Wiederhergestellt: ${decs.length} frühere Agent-Entscheidung(en)`, 'info');
+            } catch (e) { /* korrupt → ignorieren */ }
+        }
         
         // ═══════════════════════════════════════════════════════════════
         // HELPER FUNCTIONS
@@ -1521,6 +1558,7 @@
                             if (data.alarmId) alarmsById[data.alarmId] = data;  // für Karten-Drill-down puffern
                             anomalyCount++;  // Anomalie-KPI zählt alarmRaised-Events (eine konsistente Quelle)
                             document.getElementById('anomalyCount').textContent = anomalyCount;
+                            persistState();
                             addLog(`🚨 ALARM [${(data.severity || '?').toUpperCase()}] ${data.sensorId}: ` +
                                    `${data.alarmType} = ${data.value}${data.unit || ''} → Grid Incident Agent`, 'anomaly');
                             return;
@@ -1572,7 +1610,7 @@
         // ═══════════════════════════════════════════════════════════════
         // JOULE AGENT ACTIONS
         // ═══════════════════════════════════════════════════════════════
-        function addAgentAction(data) {
+        function addAgentAction(data, restore = false) {
             const list = document.getElementById('agentActions');
             const empty = document.getElementById('agentEmpty');
             if (empty) empty.remove();
@@ -1609,7 +1647,12 @@
             list.prepend(card);
             while (list.children.length > 20) list.lastChild.remove();
 
-            addLog(`🤖 Agent: ${label} für ${data.sensorId || '?'}`, 'anomaly');
+            if (!restore) {
+                recentDecisions.unshift(data);
+                recentDecisions = recentDecisions.slice(0, STORE_MAX);
+                persistState();
+                addLog(`🤖 Agent: ${label} für ${data.sensorId || '?'}`, 'anomaly');
+            }
         }
 
         // ═══════════════════════════════════════════════════════════════
@@ -1705,19 +1748,23 @@
         window.addEventListener('load', () => {
             addLog('BS GRID Dashboard initialized (SAP Fiori Style)', 'info');
             addLog(`Topic: ${SUBSCRIPTION_TOPIC}`, 'info');
-            
-            if (typeof solace === 'undefined') {
-                addLog('Loading Solace library...', 'info');
-                setTimeout(() => {
-                    if (typeof solace !== 'undefined') {
-                        addLog('Solace library ready', 'info');
-                    } else {
-                        addLog('Solace library failed to load', 'error');
-                    }
-                }, 2000);
-            } else {
-                addLog('Solace library ready', 'info');
-            }
+
+            // Verlauf aus dem Browser wiederherstellen → Dashboard ist beim Start nicht leer
+            restoreState();
+
+            // Solace-Library abwarten, dann automatisch verbinden (kein Klick auf Connect nötig)
+            let tries = 0;
+            const autoConnect = () => {
+                if (typeof solace !== 'undefined') {
+                    addLog('Solace library ready — verbinde automatisch…', 'info');
+                    if (!connected) connect();
+                } else if (tries++ < 20) {
+                    setTimeout(autoConnect, 300);
+                } else {
+                    addLog('Solace library failed to load', 'error');
+                }
+            };
+            autoConnect();
         });
     </script>
 </body>
