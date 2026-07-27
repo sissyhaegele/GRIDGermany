@@ -75,15 +75,13 @@ Der **Grid Incident Agent** bewertet Alarme und entscheidet über die Reaktion
 (Techniker, Eskalation, Sensor-Neustart, Beobachten). Er läuft im **Solace
 Agent Mesh (SAM)** und nutzt ein LLM über einen OpenAI-kompatiblen Endpoint.
 
-Für den LLM-Zugang gibt es **zwei Wege** — beide sprechen dasselbe
-OpenAI-/LiteLLM-Protokoll, SAM sieht keinen Unterschied:
+Der **LLM-Zugang** (Hyperspace AI / SAP AI Core, OpenAI-kompatibel) ist in ein
+eigenes, use-case-unabhängiges Repo ausgegliedert: **`sap-llm-proxy`**
+(lokaler Ordner `../sap-llm-proxy`). SAM spricht den HAI-Proxy als
+Custom-Provider an (Endpoint `http://localhost:6655/litellm`, Model z.B.
+`anthropic--claude-4.6-sonnet`).
 
-| Weg | Ordner | Status | Wann |
-|-----|--------|--------|------|
-| **HAI (Hyperspace AI), lokaler Proxy** | [`hai/`](hai/) | ✅ **aktiv genutzt** | Endpoint `localhost:6655`, kein Deployment nötig |
-| **SAP AI Core via LiteLLM auf Kyma** | [`litellm-proxy/`](litellm-proxy/) | 🅿️ bereitgestellt, nicht aktiv | wenn der Proxy geteilt/serverseitig laufen soll (Team, Produktion) |
-
-Aktueller Datenfluss (alles lokal + Solace Cloud, **kein Kyma im Pfad**):
+Aktueller Datenfluss (lokal + Solace Cloud):
 
 ```
 Alarm → SAP AEM/Solace → SAM-Agent → HAI-Proxy (localhost:6655) → Claude/GPT
@@ -91,11 +89,9 @@ Alarm → SAP AEM/Solace → SAM-Agent → HAI-Proxy (localhost:6655) → Claude
                    agentActionTaken → notification_consumer.py → E-Mail (outbox/)
 ```
 
-- SAM Custom-Provider: Endpoint `http://localhost:6655/litellm`, Model z.B.
-  `anthropic--claude-4.6-sonnet`. Details: [`hai/README.md`](hai/README.md).
-- Der Kyma-Cluster (`c3d1a36`) läuft, ist aber aktuell leer — der
-  `litellm-proxy/`-Weg ist dort noch **nicht** deployed.
-- Agent-Instructions & Event-Contract: [`docs/`](docs/).
+Grid-spezifisch bleibt hier: `notification_consumer.py` (parst die
+`agentActionTaken`-Entscheidung robust, inkl. ```json-Fence), die
+Agent-Instructions & der Event-Contract unter [`docs/`](docs/).
 
 ## 🔧 Configuration
 
