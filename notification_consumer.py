@@ -188,10 +188,18 @@ def _parse_payload(raw_bytes):
       2. JSON-String, der JSON enthält (doppelt kodiert)
       3. JSON-String mit ```json …```-Markdown-Fence (LLM-Ausgabe)
     """
-    data = json.loads(raw_bytes.decode())
-    # Fall 2/3: String, der noch echtes JSON enthält
+    raw = raw_bytes.decode()
+    # Erst direkt parsen (SAM: escaped String → 1. Parse ergibt String),
+    # nur bei Fehler die ```json-Fence entfernen.
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        data = json.loads(_strip_code_fence(raw))
     if isinstance(data, str):
-        data = json.loads(_strip_code_fence(data))
+        try:
+            data = json.loads(data)
+        except json.JSONDecodeError:
+            data = json.loads(_strip_code_fence(data))
     return data
 
 
