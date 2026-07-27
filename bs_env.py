@@ -2,8 +2,10 @@
 GRIDGermany - zentrale Broker-Konfiguration (Python-Seite).
 
 Beim Import werden die Werte aus `config.env` (im Projekt-Root) in os.environ
-geladen — EINE Stelle für Host, VPN, Username, Passwort. Ein bereits gesetztes
-Environment (echte Shell-Variablen) hat Vorrang und wird nicht überschrieben.
+geladen — EINE Stelle für Host, VPN, Username, Passwort. config.env ist die
+maßgebliche Quelle und ÜBERSCHREIBT auch bereits gesetzte Shell-Variablen
+(verhindert, dass ein altes `export SOLACE_HOST=…` aus der Shell die Skripte
+still auf den falschen/alten Broker zeigen lässt).
 
 Verwendung: als ERSTE Zeile eines Skripts `import bs_env`, danach ganz normal
 `os.getenv('SOLACE_HOST')` usw.
@@ -29,7 +31,7 @@ def _load(path):
             key, val = line.split('=', 1)
             key = key.strip()
             val = val.strip().strip('"').strip("'")
-            os.environ.setdefault(key, val)   # Shell-Environment gewinnt
+            os.environ[key] = val   # config.env ist maßgeblich (überschreibt Shell)
 
 
 _cfg = os.path.join(_ROOT, 'config.env')
