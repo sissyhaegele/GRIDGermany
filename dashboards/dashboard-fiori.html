@@ -1311,12 +1311,11 @@
             
             const isAnomaly = data.status === 'anomaly';
             const wasAnomaly = sensorData[sensorId] && sensorData[sensorId].status === 'anomaly';
-            
-            if (isAnomaly && !wasAnomaly) {
-                anomalyCount++;
-            } else if (!isAnomaly && wasAnomaly) {
-                anomalyCount = Math.max(0, anomalyCount - 1);
-                addLog(`${sensorId}: Grid stabilized`, 'info');
+
+            // Der Anomalie-KPI wird über alarmRaised-Events gezählt (siehe oben) —
+            // hier nur die Rückkehr in den Normalzustand protokollieren.
+            if (!isAnomaly && wasAnomaly) {
+                addLog(`${sensorId}: Grid stabilisiert`, 'info');
             }
             
             sensorData[sensorId] = {
@@ -1520,6 +1519,8 @@
 
                         if (topic.includes('/alarmRaised/')) {
                             if (data.alarmId) alarmsById[data.alarmId] = data;  // für Karten-Drill-down puffern
+                            anomalyCount++;  // Anomalie-KPI zählt alarmRaised-Events (eine konsistente Quelle)
+                            document.getElementById('anomalyCount').textContent = anomalyCount;
                             addLog(`🚨 ALARM [${(data.severity || '?').toUpperCase()}] ${data.sensorId}: ` +
                                    `${data.alarmType} = ${data.value}${data.unit || ''} → Grid Incident Agent`, 'anomaly');
                             return;
