@@ -38,8 +38,10 @@ PORT = int(os.getenv('SOLACE_PORT', 8883))
 USERNAME = os.getenv('SOLACE_USERNAME')
 PASSWORD = os.getenv('SOLACE_PASSWORD')
 
-FIRST_DELAY = float(os.getenv('DEMO_FIRST_DELAY', '8'))
-GAP = float(os.getenv('DEMO_GAP', '70'))
+# 1. Alarm nahezu sofort (Showcase soll schnell "leben"; +~8s Agent-Latenz →
+# erste Karte nach ~10s), danach kompakt getaktet. Alles per Env überschreibbar.
+FIRST_DELAY = float(os.getenv('DEMO_FIRST_DELAY', '1'))
+GAP = float(os.getenv('DEMO_GAP', '15'))
 MAX_ALARMS = int(os.getenv('DEMO_MAX_ALARMS', '0'))  # 0 = alle (bzw. 4 bei Zufall)
 RANDOM = os.getenv('DEMO_RANDOM', '1') != '0'         # 1 = zufällig variierte Alarme (Default)
 
