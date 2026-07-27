@@ -389,6 +389,7 @@
             display: flex;
             flex-direction: column;
             padding: 6px;
+            overflow: hidden;               /* Label darf nie in Nachbar-Bezirke ragen */
             transition: all 0.2s ease;
         }
         
@@ -408,7 +409,10 @@
             border-radius: 4px;
             margin-bottom: 6px;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 0.4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;   /* bei zu schmaler Kachel sauber kürzen statt überlaufen */
         }
         
         .district-sensors {
@@ -1082,7 +1086,7 @@
             </div>
             <div class="berlin-map" id="berlinMap">
                 <!-- Districts positioned according to Berlin geography -->
-                <div class="district" id="district-SPA" style="left: 1%; top: 20%; width: 16%; height: 35%;">
+                <div class="district" id="district-SPA" style="left: 1%; top: 22%; width: 13%; height: 32%;">
                     <div class="district-label">Spandau</div>
                     <div class="district-sensors" id="sensors-SPA"></div>
                 </div>
@@ -1094,7 +1098,7 @@
                     <div class="district-label">Prenzlauer Berg</div>
                     <div class="district-sensors" id="sensors-PRZ"></div>
                 </div>
-                <div class="district" id="district-CHA" style="left: 6%; top: 28%; width: 22%; height: 30%;">
+                <div class="district" id="district-CHA" style="left: 16%; top: 30%; width: 18%; height: 22%;">
                     <div class="district-label">Charlottenburg</div>
                     <div class="district-sensors" id="sensors-CHA"></div>
                 </div>
@@ -1445,6 +1449,19 @@
         // ═══════════════════════════════════════════════════════════════
         // LOG
         // ═══════════════════════════════════════════════════════════════
+        // Entfernt Markdown-Codeblöcke (```json … ```) und Rauschen, das ein
+        // LLM manchmal um das JSON legt — schneidet auf das äußerste {...} zu.
+        function unwrapJson(s) {
+            if (typeof s !== 'string') return s;
+            let t = s.trim();
+            if (t.startsWith('```')) {
+                t = t.replace(/^```[a-zA-Z]*\s*/, '').replace(/```\s*$/, '').trim();
+            }
+            const first = t.indexOf('{'), last = t.lastIndexOf('}');
+            if (first !== -1 && last > first) t = t.slice(first, last + 1);
+            return t;
+        }
+
         function addLog(message, type = 'info') {
             const log = document.getElementById('log');
             const time = new Date().toLocaleTimeString('de-DE');
@@ -1540,12 +1557,15 @@
                         // re-decode as UTF-8 so ü/ö/ä/ß and → survive. Harmless no-op
                         // (throws → caught) for already-correct strings.
                         try { payload = decodeURIComponent(escape(payload)); } catch (e) {}
-                        let data = JSON.parse(payload);
-                        // SAM publishes the agent's JSON as an escaped string
-                        // ("{\"actionId\":...}"), so a first parse yields a string.
-                        // Parse once more to reach the actual object.
+                        // Robust parsen: erst direkt (SAM liefert das JSON oft als
+                        // escaped String → 1. Parse ergibt einen String), nur bei
+                        // Fehler die Markdown-Fences (```json …```) entfernen.
+                        let data;
+                        try { data = JSON.parse(payload); }
+                        catch (e) { data = JSON.parse(unwrapJson(payload)); }
                         if (typeof data === 'string') {
-                            data = JSON.parse(data);
+                            try { data = JSON.parse(data); }
+                            catch (e) { data = JSON.parse(unwrapJson(data)); }
                         }
                         const topic = message.getDestination().getName();
 
