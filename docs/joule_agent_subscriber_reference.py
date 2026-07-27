@@ -24,8 +24,8 @@ Dependency: pip install solace-pubsubplus
  um es für die tatsächliche Laufzeitumgebung zu verifizieren statt zu raten.)
 
 asset.yaml (Environment):
-  SOLACE_HOST=tcps://mr-connection-gu0w0pjgchg.messaging.solace.cloud:55443
-  SOLACE_VPN_NAME=germangrid_berlin
+  SOLACE_HOST=tcps://mr-connection-89lyiztvo72.messaging.solace.cloud:55443
+  SOLACE_VPN_NAME=ger_dmi
   SOLACE_USERNAME=solace-cloud-client
   SOLACE_PASSWORD=<demo-passwort>
   SOLACE_SUBSCRIBE_TOPIC=bs/*/mv/transformer/powerline/alarmRaised/*
@@ -72,8 +72,8 @@ except Exception as e:  # ImportError bei fehlendem Paket, OSError bei fehlender
 # ---- Konfiguration aus dem Environment (asset.yaml) ----
 # SMF/TLS-Endpoint der Solace Cloud (tcps, Port 55443). Der Broker nutzt ein
 # öffentlich vertrauenswürdiges Zertifikat -> keine Insecure-Flags nötig.
-HOST = os.getenv('SOLACE_HOST', 'tcps://mr-connection-gu0w0pjgchg.messaging.solace.cloud:55443')
-VPN = os.getenv('SOLACE_VPN_NAME', 'germangrid_berlin')
+HOST = os.getenv('SOLACE_HOST', 'tcps://mr-connection-89lyiztvo72.messaging.solace.cloud:55443')
+VPN = os.getenv('SOLACE_VPN_NAME', 'ger_dmi')
 USERNAME = os.getenv('SOLACE_USERNAME', 'solace-cloud-client')
 PASSWORD = os.getenv('SOLACE_PASSWORD', '')
 # SMF-Wildcards: '*' = eine Ebene, '>' = Rest. sensorId ist genau eine Ebene
