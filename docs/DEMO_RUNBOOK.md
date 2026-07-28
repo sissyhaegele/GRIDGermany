@@ -46,21 +46,26 @@ python3 -m http.server 8000
 
 ## 2 · Demo fahren – Alarme gezielt auslösen
 
-Nicht auf Zufall warten (Default-Rate ist bewusst niedrig). Alarme deterministisch
-über den Demo-Player abfeuern:
+Nicht auf Zufall warten (Default-Rate ist bewusst niedrig). Alarme über den
+Demo-Player abfeuern:
+
+**Standard-Demo** — verlässlicher Einstieg, dann Zufall:
+```bash
+python3 demo_scenario.py
+```
+> Eröffnung ist gescriptet: **1. Kachel Beobachtung (monitor) nach ~10s,
+> 2. Kachel Technikereinsatz (dispatch)** — danach zufällige Alarme. So bleibt
+> die Botschaft "deterministisch UND nicht-deterministisch" sichtbar.
 
 **Ein einzelner Alarm** (schnell, spart Credits):
 ```bash
-DEMO_FIRST_DELAY=1 DEMO_MAX_ALARMS=1 DEMO_RANDOM=0 python3 demo_scenario.py
+DEMO_MAX_ALARMS=1 python3 demo_scenario.py
 ```
 
-**Alle vier Entscheidungstypen** (dispatch / escalate / monitor / restart), zeitlich gestaffelt:
-```bash
-DEMO_FIRST_DELAY=3 DEMO_GAP=20 python3 demo_scenario.py
-```
-
-Steuer-Variablen: `DEMO_FIRST_DELAY` (s bis 1. Alarm), `DEMO_GAP` (s dazwischen),
-`DEMO_MAX_ALARMS` (0 = alle), `DEMO_RANDOM` (1 = variiert, 0 = feste Szenarien).
+Steuer-Variablen: `DEMO_FIRST_DELAY` (s bis 1. Alarm, Default 2 → Kachel ~10s),
+`DEMO_GAP` (s dazwischen), `DEMO_MAX_ALARMS` (0 = alle),
+`DEMO_LEADIN` (0 = sofort zufällig, ohne festen Einstieg),
+`DEMO_RANDOM` (0 = alle 4 fest in Reihenfolge monitor→dispatch→escalate→restart).
 
 ---
 

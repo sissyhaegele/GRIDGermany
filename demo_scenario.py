@@ -3,12 +3,16 @@
 GRIDGermany - Demo Scenario Player
 Showcase: Berliner Stadtwerke (BS)
 
-Spielt eine feste, gut getimte Folge von Alarmen ab — statt sie zufällig
-entstehen zu lassen. Damit ist die Demo:
-  - gut getaktet:  der erste Alarm kommt zügig, die nächsten verteilt später
-  - sparsam:       jeder Alarm = genau ein Agent-Aufruf (= Credits). Du weißt
-                   vorab exakt, wie viele. Default: 4 Alarme über ~4 Minuten.
-  - abwechslungsreich: die vier Szenarien decken alle vier Agent-Entscheidungen ab.
+Spielt getimte Alarme ab, damit die Demo verlässlich läuft:
+  - gescripteter Einstieg: die ersten beiden Karten sind fest — 1) Beobachtung
+    (monitor), 2) Technikereinsatz (dispatch) — danach bleibt es ZUFÄLLIG.
+    So bleibt die EDA-Botschaft "deterministisch UND nicht-deterministisch".
+  - gut getaktet:  1. Kachel nach ~10s, die nächsten verteilt (DEMO_GAP).
+  - sparsam:       jeder Alarm = genau ein Agent-Aufruf (= Credits).
+  - abwechslungsreich: deckt alle vier Agent-Entscheidungen ab.
+
+Lead-in abschalten (rein zufällig): DEMO_LEADIN=0
+Komplett feste Reihenfolge (alle 4 gescriptet): DEMO_RANDOM=0
 
 Voraussetzung: der SAM-Agent (GridIncidentAgent + GridAlarmEntrypoint) läuft.
 Sensoren können parallel laufen (fürs Live-Telemetrie-Bild); für null zufällige
@@ -17,9 +21,11 @@ Zusatz-Alarme dabei: SENSOR_ANOMALY_CHANCE=0 ./bsgrid
 Start:
     python3 demo_scenario.py
 Optional (Env):
-    DEMO_FIRST_DELAY  Sekunden bis zum 1. Alarm         (Default 8)
-    DEMO_GAP          Sekunden zwischen den weiteren     (Default 70)
+    DEMO_FIRST_DELAY  Sekunden bis zum 1. Alarm         (Default 2 → Kachel ~10s)
+    DEMO_GAP          Sekunden zwischen den weiteren     (Default 15)
     DEMO_MAX_ALARMS   nur die ersten N Szenarien spielen (Default alle 4)
+    DEMO_RANDOM       1 = zufällig (mit festem Lead-in), 0 = ganz fest (Default 1)
+    DEMO_LEADIN       1 = feste erste 2 Karten, 0 = sofort zufällig (Default 1)
     SOLACE_HOST/PORT/USERNAME/PASSWORD  wie üblich
 """
 
@@ -38,9 +44,10 @@ PORT = int(os.getenv('SOLACE_PORT', 8883))
 USERNAME = os.getenv('SOLACE_USERNAME')
 PASSWORD = os.getenv('SOLACE_PASSWORD')
 
-# 1. Alarm nahezu sofort (Showcase soll schnell "leben"; +~8s Agent-Latenz →
-# erste Karte nach ~10s), danach kompakt getaktet. Alles per Env überschreibbar.
-FIRST_DELAY = float(os.getenv('DEMO_FIRST_DELAY', '1'))
+# Ziel: 1. Kachel im Dashboard nach ~10s. Die Karte = Alarm + Agent-Latenz (~8s),
+# daher wird der 1. Alarm nach ~2s gefeuert. Wenn dein Agent langsamer/schneller
+# ist, DEMO_FIRST_DELAY nachstellen. Alles per Env überschreibbar.
+FIRST_DELAY = float(os.getenv('DEMO_FIRST_DELAY', '2'))
 GAP = float(os.getenv('DEMO_GAP', '15'))
 MAX_ALARMS = int(os.getenv('DEMO_MAX_ALARMS', '0'))  # 0 = alle (bzw. 4 bei Zufall)
 RANDOM = os.getenv('DEMO_RANDOM', '1') != '0'         # 1 = zufällig variierte Alarme (Default)
@@ -142,23 +149,25 @@ def random_scenario():
 BASE = {'temperature': 45, 'voltage': 230, 'frequency': 50.0, 'load': 60, 'power': 140, 'uptime': 100.0}
 
 def scenarios():
+    # Reihenfolge = bewusst gewählte Eröffnung der Demo:
+    # 1) Beobachtung, 2) Technikereinsatz, 3) Eskalation, 4) Restart.
     return [
-        # 1) Temperatur-Rampe + steigende Last → dispatch_technician  (der schnelle erste Alarm)
-        dict(sensorId='TRF-KRZ-042', district='kreuzberg', alarmType='temperature',
-             value=74.5, unit='°C', threshold={'max': 60.0}, severity='critical',
-             location={'district': 'kreuzberg', 'lat': 52.4970, 'lon': 13.4070, 'address': 'Kottbusser Tor'},
-             recentMetrics=_recent('temperature', 52, 74.5, 8, BASE)),
-        # 2) Spannungs-Rampe → escalate (Netzstabilität)
-        dict(sensorId='TRF-NEU-002', district='neukoelln', alarmType='voltage',
-             value=212.0, unit='V', threshold={'nominal': 230.0, 'maxDeviation': 10.0}, severity='critical',
-             location={'district': 'neukoelln', 'lat': 52.4810, 'lon': 13.4350, 'address': 'Hermannplatz'},
-             recentMetrics=_recent('voltage', 231, 212, 8, BASE)),
-        # 3) Milder Einzelausreißer → monitor
+        # 1) Milder Einzelausreißer → monitor  (der ruhige Einstieg: "Agent beobachtet")
         dict(sensorId='TRF-MIT-007', district='mitte', alarmType='temperature',
              value=63.0, unit='°C', threshold={'max': 60.0}, severity='warning',
              location={'district': 'mitte', 'lat': 52.5200, 'lon': 13.4050, 'address': 'Alexanderplatz'},
              recentMetrics=_recent('temperature', 52, 52.5, 7, BASE) +
                            _recent('temperature', 63, 63, 1, BASE)),
+        # 2) Temperatur-Rampe + steigende Last → dispatch_technician  (Techniker wird eingeplant)
+        dict(sensorId='TRF-KRZ-042', district='kreuzberg', alarmType='temperature',
+             value=74.5, unit='°C', threshold={'max': 60.0}, severity='critical',
+             location={'district': 'kreuzberg', 'lat': 52.4970, 'lon': 13.4070, 'address': 'Kottbusser Tor'},
+             recentMetrics=_recent('temperature', 52, 74.5, 8, BASE)),
+        # 3) Spannungs-Rampe → escalate (Netzstabilität)
+        dict(sensorId='TRF-NEU-002', district='neukoelln', alarmType='voltage',
+             value=212.0, unit='V', threshold={'nominal': 230.0, 'maxDeviation': 10.0}, severity='critical',
+             location={'district': 'neukoelln', 'lat': 52.4810, 'lon': 13.4350, 'address': 'Hermannplatz'},
+             recentMetrics=_recent('voltage', 231, 212, 8, BASE)),
         # 4) Abrupter Spike ohne Vorlauf → restart_sensor (Sensorfehler)
         dict(sensorId='TRF-FRH-003', district='friedrichshain', alarmType='temperature',
              value=79.0, unit='°C', threshold={'max': 60.0}, severity='critical',
@@ -190,8 +199,18 @@ def topic_for(sc):
 
 def main():
     if RANDOM:
+        # Gescripteter Einstieg, damit die Demo verlässlich eröffnet:
+        #   1. Karte = Beobachtung (monitor), 2. Karte = Technikereinsatz (dispatch).
+        # ALLES danach bleibt zufällig — die Botschaft "deterministisch UND
+        # nicht-deterministisch" bleibt erhalten. Abschaltbar mit DEMO_LEADIN=0.
+        lead_in = os.getenv('DEMO_LEADIN', '1') != '0'
         count = MAX_ALARMS if MAX_ALARMS > 0 else 4
-        scs = [random_scenario() for _ in range(count)]
+        if lead_in:
+            fixed = scenarios()[:2]                       # [monitor, dispatch]
+            extra = [random_scenario() for _ in range(max(0, count - len(fixed)))]
+            scs = (fixed + extra)[:count]
+        else:
+            scs = [random_scenario() for _ in range(count)]
     else:
         scs = scenarios()
         if MAX_ALARMS > 0:
