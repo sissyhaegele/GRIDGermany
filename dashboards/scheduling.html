@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BS GRID – Technician Scheduling</title>
+    <script src="config.js"></script>
+    <script src="solclient-full.js"></script>
+    <style>
+        :root {
+            --bg: #f5f6f7; --card: #fff; --border: #e5e5e5; --text: #32363a;
+            --muted: #6a6d70; --brand: #0a6ed1; --ok: #107e3e; --warn: #e9730c; --busy: #bb0000;
+        }
+        * { box-sizing: border-box; }
+        body { margin: 0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+               background: var(--bg); color: var(--text); }
+        .shell { background: #354a5f; color: #fff; padding: 12px 20px; display: flex;
+                 align-items: center; justify-content: space-between; }
+        .shell b { font-weight: 600; }
+        .status { font-size: 13px; padding: 4px 12px; border-radius: 14px; background: #46617a; }
+        .status.on { background: #107e3e; }
+        .page { padding: 20px; max-width: 1100px; margin: 0 auto; }
+        h1 { font-size: 20px; font-weight: 600; margin: 4px 0 2px; }
+        .sub { color: var(--muted); font-size: 13px; margin-bottom: 18px; }
+        .section-title { font-size: 14px; font-weight: 600; margin: 18px 0 10px; }
+        .avail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+        .team-card { background: var(--card); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+        .team-name { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .4px; margin-bottom: 8px; }
+        .tech-row { display: flex; align-items: center; justify-content: space-between; padding: 5px 0; font-size: 14px; }
+        .tech-left { display: flex; align-items: center; gap: 8px; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; }
+        .dot.ok { background: var(--ok); } .dot.warn { background: var(--warn); } .dot.busy { background: var(--busy); }
+        .tech-meta { font-size: 12px; color: var(--muted); }
+        .appts { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+        .appt { background: var(--card); border: 1px solid var(--border); border-left: 4px solid var(--brand);
+                border-radius: 8px; padding: 12px 14px; }
+        .appt-head { display: flex; justify-content: space-between; align-items: baseline; }
+        .appt-tech { font-weight: 600; }
+        .appt-slot { font-weight: 600; color: var(--brand); }
+        .appt-meta { font-size: 12px; color: var(--muted); margin-top: 4px; }
+        .empty { color: var(--muted); font-size: 13px; padding: 16px; background: var(--card);
+                 border: 1px dashed var(--border); border-radius: 8px; }
+        .footer { text-align: center; color: var(--muted); font-size: 12px; padding: 18px; }
+    </style>
+</head>
+<body>
+    <div class="shell">
+        <b>⚡ BS GRID · Technician Scheduling</b>
+        <span class="status" id="status">Verbinde…</span>
+    </div>
+    <div class="page">
+        <h1>Einsatzplanung</h1>
+        <div class="sub">Reagiert auf Technikereinsätze des Grid Incident Agent · Event: technicianScheduled</div>
+
+        <div class="section-title">Technikerverfügbarkeit</div>
+        <div class="avail-grid" id="availGrid"></div>
+
+        <div class="section-title">Geplante Termine</div>
+        <div class="appts" id="apptList">
+            <div class="empty" id="apptEmpty">Warte auf geplante Termine …</div>
+        </div>
+    </div>
+    <div class="footer">BS GRID POC · Berliner Stadtwerke · Ein weiterer Event-Consumer im Mesh</div>
+
+    <script>
+        const SUB_TOPIC = 'bs/*/mv/transformer/powerline/technicianScheduled/*';
+        const STORE_KEY = 'bsgrid_scheduling';
+        const ROSTER = {
+            'Team Ost':   ['Anna Krause', 'Ben Richter'],
+            'Team Mitte': ['Clara Vogt', 'David Lang'],
+            'Team West':  ['Eva Sommer', 'Finn Berg'],
+            'Team Süd':   ['Greta Hahn', 'Ivan Petrov'],
+            'Team Nord':  ['Jonas Weiss'],
+        };
+        let session = null, connected = false;
+        const appointments = {};   // appointmentId -> appt
+
+        function unwrapJson(s) {
+            if (typeof s !== 'string') return s;
+            let t = s.trim();
+            if (t.startsWith('```')) t = t.replace(/^```[a-zA-Z]*\s*/, '').replace(/```\s*$/, '').trim();
+            const a = t.indexOf('{'), b = t.lastIndexOf('}');
+            if (a !== -1 && b > a) t = t.slice(a, b + 1);
+            return t;
+        }
+
+        function renderAvailability() {
+            const counts = {};
+            Object.values(appointments).forEach(a => { counts[a.technician] = (counts[a.technician] || 0) + 1; });
+            const grid = document.getElementById('availGrid');
+            grid.innerHTML = '';
+            for (const [team, techs] of Object.entries(ROSTER)) {
+                const card = document.createElement('div');
+                card.className = 'team-card';
+                const rows = techs.map(t => {
+                    const n = counts[t] || 0;
+                    const cls = n === 0 ? 'ok' : (n <= 2 ? 'warn' : 'busy');
+                    const label = n === 0 ? 'frei' : `${n} Termin${n > 1 ? 'e' : ''}`;
+                    return `<div class="tech-row"><span class="tech-left"><span class="dot ${cls}"></span>${t}</span>` +
+                           `<span class="tech-meta">${label}</span></div>`;
+                }).join('');
+                card.innerHTML = `<div class="team-name">${team}</div>${rows}`;
+                grid.appendChild(card);
+            }
+        }
+
+        function addAppointment(a, restore) {
+            if (!a.appointmentId || appointments[a.appointmentId]) return;
+            appointments[a.appointmentId] = a;
+            const empty = document.getElementById('apptEmpty');
+            if (empty) empty.remove();
+            const el = document.createElement('div');
+            el.className = 'appt';
+            el.innerHTML = `<div class="appt-head"><span class="appt-tech"></span><span class="appt-slot"></span></div>
+                            <div class="appt-meta"></div>`;
+            el.querySelector('.appt-tech').textContent = `${a.technician || '?'} · ${a.team || ''}`;
+            el.querySelector('.appt-slot').textContent = a.slotLabel || a.slot || '';
+            el.querySelector('.appt-meta').textContent =
+                `${a.sensorId || '?'} · ${a.district || ''} · Alarm ${a.alarmId || '—'}`;
+            document.getElementById('apptList').prepend(el);
+            renderAvailability();
+            if (!restore) persist();
+        }
+
+        function persist() {
+            try { localStorage.setItem(STORE_KEY, JSON.stringify(
+                { appts: Object.values(appointments).slice(-40), savedAt: Date.now() })); } catch (e) {}
+        }
+        function restore() {
+            try {
+                const s = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
+                if (!s || Date.now() - s.savedAt > 6 * 3600 * 1000) return;
+                (s.appts || []).forEach(a => addAppointment(a, true));
+            } catch (e) {}
+            renderAvailability();
+        }
+
+        function setStatus(txt, on) {
+            const el = document.getElementById('status');
+            el.textContent = txt; el.className = 'status' + (on ? ' on' : '');
+        }
+
+        function connect() {
+            try {
+                const props = new solace.SolclientFactoryProperties();
+                props.profile = solace.SolclientFactoryProfiles.version10;
+                solace.SolclientFactory.init(props);
+                const sp = new solace.SessionProperties();
+                sp.url = `wss://${window.SOLACE_CONFIG.host}:443`;
+                sp.vpnName = window.SOLACE_CONFIG.vpn;
+                sp.userName = window.SOLACE_CONFIG.username;
+                sp.password = window.SOLACE_CONFIG.password;
+                session = solace.SolclientFactory.createSession(sp);
+                session.on(solace.SessionEventCode.UP_NOTICE, () => {
+                    connected = true; setStatus('Verbunden', true);
+                    const sub = solace.SolclientFactory.createTopicDestination(SUB_TOPIC);
+                    session.subscribe(sub, true, SUB_TOPIC, 10000);
+                });
+                session.on(solace.SessionEventCode.CONNECT_FAILED_ERROR, () => setStatus('Verbindung fehlgeschlagen', false));
+                session.on(solace.SessionEventCode.DISCONNECTED, () => { connected = false; setStatus('Getrennt', false); });
+                session.on(solace.SessionEventCode.MESSAGE, (message) => {
+                    try {
+                        const sdt = message.getSdtContainer && message.getSdtContainer();
+                        let payload = sdt ? sdt.getValue() : message.getBinaryAttachment();
+                        try { payload = decodeURIComponent(escape(payload)); } catch (e) {}
+                        let data;
+                        try { data = JSON.parse(payload); } catch (e) { data = JSON.parse(unwrapJson(payload)); }
+                        if (typeof data === 'string') {
+                            try { data = JSON.parse(data); } catch (e) { data = JSON.parse(unwrapJson(data)); }
+                        }
+                        addAppointment(data, false);
+                    } catch (e) { /* ignorieren */ }
+                });
+                session.connect();
+            } catch (e) { setStatus('Fehler: ' + e.message, false); }
+        }
+
+        window.addEventListener('load', () => {
+            restore();
+            let tries = 0;
+            const go = () => {
+                if (typeof solace !== 'undefined') connect();
+                else if (tries++ < 20) setTimeout(go, 300);
+                else setStatus('Solace-Library fehlt', false);
+            };
+            go();
+        });
+    </script>
+</body>
+</html>
