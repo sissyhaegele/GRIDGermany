@@ -134,7 +134,10 @@ class SchedulingService:
         # Auslöser: bevorzugt schedulingRequested (vom Workflow), sonst direkt
         # die dispatch_technician-Entscheidung (Fallback ohne Workflow).
         if 'schedulingRequested' in message.topic:
-            pass  # jede schedulingRequested-Nachricht ist ein Auftrag
+            # Falls der Workflow das 'decision'-Feld mitschickt (weil er ohne
+            # Switch alles publiziert), hier defensiv filtern — nur Technikereinsätze.
+            if data.get('decision') and data.get('decision') != 'dispatch_technician':
+                return
         elif data.get('decision') != 'dispatch_technician':
             return
 

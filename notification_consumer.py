@@ -3,15 +3,21 @@
 GRIDGermany - Notification Consumer
 Showcase: Berliner Stadtwerke (BS)
 
-Ein additiver Consumer im Event Mesh: abonniert die Entscheidungen des
-Grid Incident Agents und erzeugt bei bestimmten decision-Typen eine
-Benachrichtigung (E-Mail). Agent und Dashboard bleiben davon unberührt —
-reine Event-Driven-Erweiterung (lose Kopplung).
+Ein additiver Consumer im Event Mesh: hört auf zwei Events und erzeugt
+daraus Benachrichtigungen (E-Mail). Agent, Scheduler und Dashboard bleiben
+davon unberührt — reine Event-Driven-Erweiterung (lose Kopplung).
 
-    bs/*/mv/transformer/powerline/agentActionTaken/*   (SMF-Wildcards)
-        │
-        ├─ decision == dispatch_technician  → Mail an Netzservice
-        └─ decision == escalate             → Mail an Leitwarte
+    bs/*/mv/transformer/powerline/agentActionTaken/*      (Entscheidung des Agents)
+        └─ decision == escalate        → Mail an die Leitwarte
+
+    bs/*/mv/transformer/powerline/technicianScheduled/*   (Termin vom Scheduler)
+        └─ Technikereinsatz            → Mail an den Netzservice mit
+                                         Team + Techniker + Slot; Status
+                                         "EINGEPLANT, noch nicht entsandt".
+
+Damit spiegelt die Techniker-Mail den echten Ablauf: Der Agent VERANLASST
+den Einsatz (dispatch_technician), die Einsatzplanung vergibt einen Termin
+(technicianScheduled) — erst dann steht fest, WER WANN kommt.
 
 Versand: MOCK-Modus (Default) — die fertige E-Mail wird in der Konsole
 angezeigt UND als .eml-Datei gespeichert (mit jedem Mail-Client öffenbar).
@@ -52,73 +58,131 @@ PASSWORD = os.getenv('SOLACE_PASSWORD')
 
 # SMF-Wildcard '*' (eine Ebene) — konsistent mit Dashboard und SAM-Entrypoint,
 # kein MQTT '+'/'#'. Auf der MQTT-Schnittstelle akzeptiert Solace '*' NICHT als
-# Wildcard, daher wird beim Abonnieren auf die MQTT-Form gemappt (siehe SUB_MQTT).
+# Wildcard, daher wird beim Abonnieren auf die MQTT-Form gemappt (siehe *_MQTT).
+#
+# Zwei Trigger, zwei Mail-Typen:
+#   • escalate            → agentActionTaken  (kein Folge-Event, direkt aus der Entscheidung)
+#   • Technikereinsatz    → technicianScheduled (der Scheduler hat Team + Slot vergeben →
+#                            die Mail zeigt den konkreten Termin: "eingeplant, noch nicht entsandt")
 ACTION_TOPIC_SMF = 'bs/*/mv/transformer/powerline/agentActionTaken/*'
-SUB_MQTT = 'bs/+/mv/transformer/powerline/agentActionTaken/+'  # MQTT-Interface-Form
+ACTION_SUB_MQTT = 'bs/+/mv/transformer/powerline/agentActionTaken/+'
+SCHEDULED_TOPIC_SMF = 'bs/*/mv/transformer/powerline/technicianScheduled/*'
+SCHEDULED_SUB_MQTT = 'bs/+/mv/transformer/powerline/technicianScheduled/+'
 
 OUTBOX = os.getenv('NOTIFY_OUTBOX', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'outbox'))
 FROM_ADDR = 'bs-grid-agent@berlinerstadtwerke.example'
 
-# Welche Entscheidung → welche Benachrichtigung. Erweiterbar: weitere
-# decision-Typen hier ergänzen, der Rest des Codes bleibt gleich.
+# decision → Benachrichtigung, ausgelöst DIREKT durch agentActionTaken.
+# dispatch_technician steht hier NICHT: dafür wartet der Consumer auf das
+# Folge-Event technicianScheduled (dann liegt ein konkreter Termin vor).
 ROUTES = {
-    'dispatch_technician': {
-        'to': 'netzservice@berlinerstadtwerke.example',
-        'team': 'Netzservice',
-        'subject': '🔧 Technikereinsatz erforderlich',
-        'lead': 'Der Grid Incident Agent hat einen Technikereinsatz veranlasst.',
-    },
     'escalate': {
         'to': 'leitwarte@berlinerstadtwerke.example',
         'team': 'Leitwarte',
         'subject': '⚠️ Eskalation an die Leitwarte',
-        'lead': 'Der Grid Incident Agent hat einen Vorfall zur Eskalation markiert.',
+        'lead': 'Der Grid Incident Agent hat einen Vorfall zur Eskalation an die Leitwarte übergeben.',
+        'action': 'Bitte den Vorfall aus der Leitwarte übernehmen und über das weitere Vorgehen entscheiden.',
     },
 }
+
+# Zieladresse für die Technikereinsatz-Mail (kommt aus technicianScheduled).
+DISPATCH_TO = 'netzservice@berlinerstadtwerke.example'
 
 
 # ============================================
 # MAIL BUILDING + (MOCK) DELIVERY
 # ============================================
 
+def _lines(pairs):
+    """Baut ausgerichtete 'Label : Wert'-Zeilen und lässt leere Werte weg,
+    damit keine sinnlosen '—'-Zeilen in der Mail stehen."""
+    kept = [(k, v) for k, v in pairs if v not in (None, '', '—')]
+    if not kept:
+        return ''
+    width = max(len(k) for k, _ in kept)
+    return '\n'.join(f"{k.ljust(width)} : {v}" for k, v in kept)
+
+
+def _mail(to, subject, body, decision, alarm_id, extra_headers=None):
+    msg = EmailMessage()
+    msg['From'] = FROM_ADDR
+    msg['To'] = to
+    msg['Subject'] = subject
+    msg['Date'] = formatdate(localtime=True)
+    msg['Message-ID'] = make_msgid(domain='berlinerstadtwerke.example')
+    msg['X-BSGRID-Decision'] = decision or ''
+    msg['X-BSGRID-AlarmId'] = alarm_id or ''
+    for k, v in (extra_headers or {}).items():
+        msg[k] = v
+    msg.set_content(body)
+    return msg
+
+
 def build_email(decision_data, route):
-    """Erzeugt eine EmailMessage aus einer agentActionTaken-Entscheidung."""
+    """Eskalations-Mail aus einer agentActionTaken-Entscheidung."""
     d = decision_data
     sensor = d.get('sensorId', '?')
     district = _district_of(d)
     params = d.get('parameters') or {}
-    priority = params.get('priority', '—')
 
     subject = f"{route['subject']} — {sensor} ({district})"
-    body = f"""{route['lead']}
+    facts = _lines([
+        ('Transformator', sensor),
+        ('Bezirk', district),
+        ('Entscheidung', d.get('decision')),
+        ('Priorität', params.get('priority')),
+        ('Zielteam', params.get('targetTeam') or route['team']),
+        ('Konfidenz', _pct(d.get('confidence'))),
+        ('Alarm-ID', d.get('alarmId')),
+        ('Zeitpunkt', d.get('timestamp')),
+    ])
+    reasoning = d.get('reasoning')
+    reason_block = f"\n\nBegründung des Agents:\n{reasoning}" if reasoning else ''
+    agent = d.get('agent')
+    trailer = f"agentActionTaken" + (f" • Agent: {agent}" if agent else '')
 
-Transformator : {sensor}
-Bezirk        : {district}
-Entscheidung  : {d.get('decision')}
-Priorität     : {priority}
-Zielteam      : {params.get('targetTeam', route['team'])}
-Konfidenz     : {_pct(d.get('confidence'))}
-Alarm-ID      : {d.get('alarmId', '—')}
-Zeitpunkt     : {d.get('timestamp', '—')}
+    body = (f"{route['lead']}\n\n"
+            f"➡️  {route['action']}\n\n"
+            f"{facts}{reason_block}\n\n"
+            f"—\nAutomatisch erzeugt vom BS GRID Notification Consumer (Event Mesh).\n"
+            f"Auslösendes Event: {trailer}\n")
 
-Begründung des Agents:
-{d.get('reasoning', '(keine Begründung übermittelt)')}
+    return _mail(route['to'], subject, body, d.get('decision'), d.get('alarmId'))
 
-—
-Automatisch erzeugt vom BS GRID Notification Consumer (Event Mesh).
-Auslösendes Event: agentActionTaken • Agent: {d.get('agent', '—')}
-"""
 
-    msg = EmailMessage()
-    msg['From'] = FROM_ADDR
-    msg['To'] = route['to']
-    msg['Subject'] = subject
-    msg['Date'] = formatdate(localtime=True)
-    msg['Message-ID'] = make_msgid(domain='berlinerstadtwerke.example')
-    msg['X-BSGRID-Decision'] = d.get('decision', '')
-    msg['X-BSGRID-AlarmId'] = d.get('alarmId', '')
-    msg.set_content(body)
-    return msg
+def build_scheduled_email(appt):
+    """Technikereinsatz-Mail aus einem technicianScheduled-Event: der Scheduler
+    hat Team + Techniker + Slot vergeben. Wortlaut: EINGEPLANT, noch nicht entsandt."""
+    sensor = appt.get('sensorId', '?')
+    district = appt.get('district', '—')
+    tech = appt.get('technician', '—')
+    team = appt.get('team', '—')
+    slot = appt.get('slotLabel') or appt.get('slot') or '—'
+
+    subject = f"🔧 Techniker eingeplant — {sensor} ({district})"
+    facts = _lines([
+        ('Transformator', sensor),
+        ('Bezirk', district),
+        ('Zielteam', team),
+        ('Techniker', tech),
+        ('Termin', slot),
+        ('Alarm-ID', appt.get('alarmId')),
+        ('Termin-ID', appt.get('appointmentId')),
+    ])
+
+    body = (
+        "Der Grid Incident Agent hat einen Technikereinsatz veranlasst; "
+        "die Einsatzplanung hat daraufhin einen Termin vergeben.\n\n"
+        "ℹ️  Status: EINGEPLANT — der Techniker ist noch NICHT entsandt. "
+        "Der Einsatz gilt als bestätigt, sobald das Team den Termin annimmt.\n\n"
+        "➡️  Bitte den Termin im Team bestätigen und die Anfahrt vorbereiten.\n\n"
+        f"{facts}\n\n"
+        "—\nAutomatisch erzeugt vom BS GRID Notification Consumer (Event Mesh).\n"
+        "Auslösendes Event: technicianScheduled\n"
+    )
+
+    return _mail(DISPATCH_TO, subject, body, 'dispatch_technician', appt.get('alarmId'),
+                 {'X-BSGRID-AppointmentId': appt.get('appointmentId', '')})
 
 
 def deliver(msg, decision_data):
@@ -130,7 +194,10 @@ def deliver(msg, decision_data):
     Die übrige Pipeline (Filtern, Mail bauen) bleibt unverändert.
     """
     os.makedirs(OUTBOX, exist_ok=True)
-    safe = (decision_data.get('alarmId') or 'unknown').replace('/', '_')
+    # Terminmails über appointmentId benennen (sonst würde die spätere
+    # Techniker-Mail die frühere Alarm-Mail mit gleicher alarmId überschreiben).
+    key = decision_data.get('appointmentId') or decision_data.get('alarmId') or 'unknown'
+    safe = str(key).replace('/', '_')
     path = os.path.join(OUTBOX, f"{safe}.eml")
     with open(path, 'wb') as f:
         f.write(bytes(msg))
@@ -212,6 +279,7 @@ class NotificationConsumer:
         self.client = None
         self.matched = 0
         self.seen = 0
+        self.notified_appts = set()   # appointmentId, gegen doppelte Terminmails
         self.shutdown = False
         signal.signal(signal.SIGINT, self._stop)
         signal.signal(signal.SIGTERM, self._stop)
@@ -223,9 +291,12 @@ class NotificationConsumer:
     def _on_connect(self, client, userdata, flags, rc, *args):
         code = rc if isinstance(rc, int) else getattr(rc, 'value', 0)
         if code == 0:
-            client.subscribe(SUB_MQTT, qos=1)
-            print(f"✅ Connected — subscribed to {ACTION_TOPIC_SMF}")
-            print(f"   Trigger: {', '.join(ROUTES)}  |  Mock-Outbox: {OUTBOX}")
+            client.subscribe(ACTION_SUB_MQTT, qos=1)
+            client.subscribe(SCHEDULED_SUB_MQTT, qos=1)
+            print(f"✅ Connected — subscribed to:")
+            print(f"     {ACTION_TOPIC_SMF}   → {', '.join(ROUTES)}")
+            print(f"     {SCHEDULED_TOPIC_SMF} → Technikereinsatz (eingeplant)")
+            print(f"   Mock-Outbox: {OUTBOX}")
         else:
             print(f"❌ Connection failed (rc={code})")
 
@@ -234,17 +305,29 @@ class NotificationConsumer:
         try:
             d = _parse_payload(message.payload)
         except (json.JSONDecodeError, UnicodeDecodeError) as e:
-            print(f"❌ Ungültiges agentActionTaken-JSON: {e}")
+            print(f"❌ Ungültiges JSON: {e}")
             return
 
+        # Technikereinsatz-Mail: durch das technicianScheduled-Folge-Event
+        # ausgelöst (konkreter Termin liegt vor).
+        if 'technicianScheduled' in message.topic:
+            appt_id = d.get('appointmentId')
+            if appt_id and appt_id in self.notified_appts:
+                return                       # denselben Termin nicht doppelt mailen
+            if appt_id:
+                self.notified_appts.add(appt_id)
+            deliver(build_scheduled_email(d), d)
+            self.matched += 1
+            return
+
+        # Sonst: Entscheidung direkt aus agentActionTaken (nur escalate konfiguriert).
         decision = d.get('decision')
         route = ROUTES.get(decision)
         if not route:
             print(f"·  {d.get('sensorId','?')}: {decision} — keine Benachrichtigung konfiguriert")
             return
 
-        msg = build_email(d, route)
-        deliver(msg, d)
+        deliver(build_email(d, route), d)
         self.matched += 1
 
     def run(self):
