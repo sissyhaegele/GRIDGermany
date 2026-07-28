@@ -78,6 +78,40 @@ def _label(dt):
     return f"{_WD[dt.weekday()]} {dt.strftime('%d.%m. %H:%M')}"
 
 
+def _strip_code_fence(text):
+    """Entfernt einen Markdown-Codeblock-Zaun (```json … ```), falls das LLM
+    seine JSON-Antwort so verpackt."""
+    s = text.strip()
+    if s.startswith('```'):
+        s = s[3:]
+        if s[:4].lower() == 'json':
+            s = s[4:]
+        end = s.rfind('```')
+        if end != -1:
+            s = s[:end]
+    return s.strip()
+
+
+def _parse_payload(raw_bytes):
+    """Entscheidungen/Termine robust parsen. SAM/das LLM publiziert die Nutzlast
+    in mehreren Formen — alle abfangen:
+      1. direktes JSON-Objekt
+      2. JSON-String, der JSON enthält (doppelt kodiert)
+      3. JSON-String mit ```json …```-Markdown-Fence (LLM-Ausgabe)
+    """
+    raw = raw_bytes.decode()
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        data = json.loads(_strip_code_fence(raw))
+    if isinstance(data, str):
+        try:
+            data = json.loads(data)
+        except json.JSONDecodeError:
+            data = json.loads(_strip_code_fence(data))
+    return data
+
+
 class SchedulingService:
     def __init__(self):
         self.assigned = {t: set() for team in ROSTER.values() for t in team}  # tech -> {slot_iso}
@@ -120,9 +154,7 @@ class SchedulingService:
 
     def _on_message(self, client, userdata, message):
         try:
-            data = json.loads(message.payload.decode())
-            if isinstance(data, str):
-                data = json.loads(data)
+            data = _parse_payload(message.payload)
         except (json.JSONDecodeError, UnicodeDecodeError) as e:
             print(f"❌ Ungültiges JSON: {e}")
             return
