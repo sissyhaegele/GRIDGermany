@@ -34,8 +34,9 @@ PORT = int(os.getenv('SOLACE_PORT', 8883))
 USERNAME = os.getenv('SOLACE_USERNAME')
 PASSWORD = os.getenv('SOLACE_PASSWORD')
 
-DECISION_SUB = 'bs/+/mv/transformer/powerline/agentActionTaken/+'
-SCHEDULED_SUB = 'bs/+/mv/transformer/powerline/technicianScheduled/+'
+REQUEST_SUB = 'bs/+/mv/transformer/powerline/schedulingRequested/+'   # vom SAM-Workflow
+DECISION_SUB = 'bs/+/mv/transformer/powerline/agentActionTaken/+'     # Fallback: direkt aus der Entscheidung
+SCHEDULED_SUB = 'bs/+/mv/transformer/powerline/technicianScheduled/+' # Zustand aus dem Event-Stream
 SCHEDULED_TOPIC = 'bs/agent/mv/transformer/powerline/technicianScheduled/scheduled'
 
 # Techniker-Teams je Bezirk (deterministisch, kein externes System)
@@ -110,9 +111,10 @@ class SchedulingService:
     def _on_connect(self, client, userdata, flags, rc, *a):
         code = rc if isinstance(rc, int) else getattr(rc, 'value', 0)
         if code == 0:
-            client.subscribe(DECISION_SUB, qos=1)
-            client.subscribe(SCHEDULED_SUB, qos=1)   # Zustand aus Event-Stream aufbauen
-            print(f"✅ Verbunden. Höre auf Entscheidungen + Termin-Events.")
+            client.subscribe(REQUEST_SUB, qos=1)     # bevorzugt: Workflow-Anfrage
+            client.subscribe(DECISION_SUB, qos=1)     # Fallback: direkt aus dispatch_technician
+            client.subscribe(SCHEDULED_SUB, qos=1)    # Zustand aus Event-Stream aufbauen
+            print(f"✅ Verbunden. Höre auf schedulingRequested + Entscheidungen + Termin-Events.")
         else:
             print(f"❌ Connect fehlgeschlagen (rc={code})")
 
@@ -129,14 +131,19 @@ class SchedulingService:
             self._record(data)          # eigener/historischer Termin → Zustand
             return
 
-        if data.get('decision') != 'dispatch_technician':
+        # Auslöser: bevorzugt schedulingRequested (vom Workflow), sonst direkt
+        # die dispatch_technician-Entscheidung (Fallback ohne Workflow).
+        if 'schedulingRequested' in message.topic:
+            pass  # jede schedulingRequested-Nachricht ist ein Auftrag
+        elif data.get('decision') != 'dispatch_technician':
             return
+
         alarm_id = data.get('alarmId')
         if alarm_id in self.processed:
-            return
+            return          # deckt auch den Fall ab, dass BEIDE Events zum selben Alarm kommen
         self.processed.add(alarm_id)
 
-        district = (data.get('location') or {}).get('district') or '—'
+        district = data.get('district') or (data.get('location') or {}).get('district') or '—'
         team, tech, slot = self._schedule(district)
         appt = {
             'appointmentId': f"APT-{data.get('sensorId','?')}-{datetime.now().strftime('%Y%m%d%H%M%S')}",
