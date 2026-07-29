@@ -22,15 +22,14 @@ eigenes Terminal-Tab im Repo-Root `GRIDGermany/`.
 ./scripts/start.sh          # Auswahl z.B. 4) 25 Sensoren
 ```
 
-**Tab B – Scheduler** (vergibt Techniker-Slots deterministisch):
+**Tab B – Backend-Dienste** (Scheduler + Notification Consumer, mit Broker-Check;
+ein Ctrl+C stoppt beide):
 ```bash
-python3 scheduling_service.py
+./scripts/services.sh
 ```
-
-**Tab C – Notification Consumer** (Mock-E-Mails nach `outbox/`):
-```bash
-python3 notification_consumer.py
-```
+> Startet `scheduling_service.py` (Terminplanung) **und** `notification_consumer.py`
+> (E-Mails) zusammen. **Beide sind nötig**, sonst kommen weder Termine noch Mails.
+> Fällt die Broker-Verbindung, bricht das Skript sofort mit klarer Meldung ab.
 
 **Dashboards** – lokalen Webserver starten, dann im eigenen Chrome öffnen:
 ```bash
@@ -92,7 +91,8 @@ open outbox/<datei>.eml     # öffnet im Mail-Client
 ## 4 · Stoppen & Reset (nach der Demo / zwischen Durchläufen)
 
 - Sensoren: **Ctrl+C** in Tab A (stoppt alle sauber).
-- Scheduler / Consumer / Webserver: **Ctrl+C** im jeweiligen Tab.
+- Backend-Dienste (Scheduler + Consumer): **Ctrl+C** in Tab B (stoppt beide).
+- Webserver: **Ctrl+C** im jeweiligen Tab.
 - `outbox/` leeren: `rm -f outbox/*.eml`
 - Dashboards zurücksetzen (leerer Startzustand): im Browser DevTools-Konsole
   `localStorage.clear()` — oder einfach neue Test-Termine kommen lassen.
@@ -104,6 +104,6 @@ open outbox/<datei>.eml     # öffnet im Mail-Client
 | Symptom | Ursache | Fix |
 |---|---|---|
 | Alarme im Log, aber **keine** Agent-Karte | LLM/Guthaben | Hyperspace/Anthropic prüfen, Agent in SAM re-deployen |
-| Keine E-Mail bei `dispatch_technician` | Scheduler aus | Tab B (`scheduling_service.py`) läuft? |
+| Keine E-Mail / kein Termin bei `dispatch_technician` | Backend-Dienste aus | `./scripts/services.sh` in Tab B läuft? |
 | Termin, aber Dashboard leer | Falscher Broker / nicht verbunden | Status-Badge im Dashboard, `config.env` prüfen |
 | Gar keine Anomalie | Rate zu niedrig | Über `demo_scenario.py` gezielt auslösen |
