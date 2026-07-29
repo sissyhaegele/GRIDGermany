@@ -54,7 +54,28 @@ DISTRICT_TEAM = {
     'neukoelln': 'Team Süd', 'tempelhof': 'Team Süd', 'schoeneberg': 'Team Süd',
     'prenzlauer berg': 'Team Nord',
 }
+# Sensor-ID-Kürzel → Bezirk. Die agentActionTaken-Entscheidung enthält KEIN
+# location/district, wohl aber die sensorId (z.B. TRF-KRZ-042) — daraus leiten
+# wir den Bezirk ab, damit die Last über ALLE Teams verteilt wird (sonst landet
+# alles im Fallback 'Team Mitte' und einzelne Techniker werden mehrfach verplant).
+CODE_DISTRICT = {
+    'MIT': 'mitte', 'KRZ': 'kreuzberg', 'CHA': 'charlottenburg',
+    'PRZ': 'prenzlauer berg', 'FRH': 'friedrichshain', 'NEU': 'neukoelln',
+    'TMP': 'tempelhof', 'SCH': 'schoeneberg', 'WED': 'wedding', 'SPA': 'spandau',
+}
 _WD = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
+
+
+def _district_of(data):
+    """Bezirk aus der Entscheidung ermitteln: bevorzugt explizites Feld, sonst
+    aus der sensorId ableiten (TRF-KRZ-042 → kreuzberg)."""
+    d = data.get('district') or (data.get('location') or {}).get('district')
+    if d:
+        return d
+    parts = (data.get('sensorId') or '').split('-')
+    if len(parts) >= 2:
+        return CODE_DISTRICT.get(parts[1].upper(), parts[1].lower())
+    return '—'
 
 
 def _next_business_slots(after, limit=240):
@@ -178,7 +199,7 @@ class SchedulingService:
             return          # deckt auch den Fall ab, dass BEIDE Events zum selben Alarm kommen
         self.processed.add(alarm_id)
 
-        district = data.get('district') or (data.get('location') or {}).get('district') or '—'
+        district = _district_of(data)
         team, tech, slot = self._schedule(district)
         appt = {
             'appointmentId': f"APT-{data.get('sensorId','?')}-{datetime.now().strftime('%Y%m%d%H%M%S')}",
