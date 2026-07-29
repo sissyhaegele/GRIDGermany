@@ -48,7 +48,7 @@ PASSWORD = os.getenv('SOLACE_PASSWORD')
 # daher wird der 1. Alarm nach ~2s gefeuert. Wenn dein Agent langsamer/schneller
 # ist, DEMO_FIRST_DELAY nachstellen. Alles per Env überschreibbar.
 FIRST_DELAY = float(os.getenv('DEMO_FIRST_DELAY', '2'))
-GAP = float(os.getenv('DEMO_GAP', '15'))
+GAP = float(os.getenv('DEMO_GAP', '8'))
 MAX_ALARMS = int(os.getenv('DEMO_MAX_ALARMS', '0'))  # 0 = alle (bzw. 4 bei Zufall)
 RANDOM = os.getenv('DEMO_RANDOM', '1') != '0'         # 1 = zufällig variierte Alarme (Default)
 
