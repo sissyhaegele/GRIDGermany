@@ -31,6 +31,7 @@ ALL_SENSORS=(
 )
 
 PIDS=()
+SERVICE_PIDS=()
 
 cleanup() {
     echo ""
@@ -38,12 +39,16 @@ cleanup() {
     for pid in "${PIDS[@]}"; do
         kill -SIGTERM "$pid" 2>/dev/null
     done
+    echo "🛑 Stopping backend services (scheduler + consumer)..."
+    for pid in "${SERVICE_PIDS[@]}"; do
+        kill -SIGTERM "$pid" 2>/dev/null
+    done
     echo "⏳ Waiting for clean MQTT disconnects..."
     sleep 2
-    for pid in "${PIDS[@]}"; do
+    for pid in "${PIDS[@]}" "${SERVICE_PIDS[@]}"; do
         kill -SIGKILL "$pid" 2>/dev/null
     done
-    echo "✅ All sensors stopped."
+    echo "✅ All stopped."
     exit 0
 }
 
@@ -90,7 +95,38 @@ for i in $(seq 0 $((COUNT - 1))); do
 done
 
 echo ""
-echo "✅ $COUNT Sensoren laufen. Ctrl+C zum Beenden."
+echo "✅ $COUNT Sensoren laufen."
+echo ""
+
+# ── Backend-Dienste mitstarten (Terminplanung + E-Mails) ──────────────
+# Ohne diese kommen weder Termine noch E-Mails. Bewusst hier integriert,
+# damit "bsgrid → Zahl → Enter" die komplette Demo hochfährt.
+# Abschaltbar: BSGRID_NO_SERVICES=1 bsgrid   (nur Sensoren)
+if [ "${BSGRID_NO_SERVICES:-0}" != "1" ]; then
+    # evtl. Reste eines früheren Laufs beenden (kein Doppelstart)
+    pkill -f scheduling_service.py 2>/dev/null
+    pkill -f notification_consumer.py 2>/dev/null
+    sleep 1
+    echo "🗓️  Starte Scheduler (Terminplanung)..."
+    python3 -u scheduling_service.py > /tmp/bsgrid_sched.log 2>&1 &
+    SERVICE_PIDS+=($!)
+    echo "📧 Starte Notification Consumer (E-Mails → ./outbox/)..."
+    python3 -u notification_consumer.py > /tmp/bsgrid_notify.log 2>&1 &
+    SERVICE_PIDS+=($!)
+    sleep 4
+    # kurzer Verbindungs-Check über die Logs
+    if grep -q "Verbunden" /tmp/bsgrid_sched.log && grep -q "Connected" /tmp/bsgrid_notify.log; then
+        echo "✅ Backend-Dienste verbunden (Scheduler + Consumer)."
+    else
+        echo "⚠️  Backend-Dienste evtl. nicht verbunden — Logs prüfen:"
+        echo "     /tmp/bsgrid_sched.log   /tmp/bsgrid_notify.log"
+    fi
+fi
+
+echo ""
+echo "════════════════════════════════════════════════════════════════"
+echo "✅ Demo bereit. Ctrl+C beendet Sensoren UND Dienste."
+echo "════════════════════════════════════════════════════════════════"
 echo ""
 
 wait
