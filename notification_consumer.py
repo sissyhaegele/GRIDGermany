@@ -99,6 +99,13 @@ DISPATCH_TO = 'netzservice@berlinerstadtwerke.example'
 # MAIL BUILDING + (MOCK) DELIVERY
 # ============================================
 
+def _slug(text):
+    """'Team Mitte' → 'team-mitte' (für Mock-Postfachadressen)."""
+    repl = {'ä': 'ae', 'ö': 'oe', 'ü': 'ue', 'ß': 'ss'}
+    s = ''.join(repl.get(c, c) for c in text.lower())
+    return ''.join(c if c.isalnum() else '-' for c in s).strip('-')
+
+
 def _lines(pairs):
     """Baut ausgerichtete 'Label : Wert'-Zeilen und lässt leere Werte weg,
     damit keine sinnlosen '—'-Zeilen in der Mail stehen."""
@@ -171,7 +178,13 @@ def build_scheduled_email(appt):
     team = appt.get('team', '—')
     slot = appt.get('slotLabel') or appt.get('slot') or '—'
 
-    subject = f"🔧 Techniker eingeplant — {sensor} ({district})"
+    # Konkreter Empfänger statt "undefiniert": das zuständige Team als Anzeige-
+    # name, adressiert an das Team-Postfach (aus dem Team abgeleitet).
+    team_slug = _slug(team) if team not in (None, '', '—') else 'netzservice'
+    to = f"{team} <{team_slug}@berlinerstadtwerke.example>" if team not in (None, '', '—') else DISPATCH_TO
+    anrede = f"Sehr geehrte/r {tech}," if tech not in (None, '', '—') else f"Sehr geehrtes {team},"
+
+    subject = f"🔧 Technikereinsatz eingeplant — {sensor} ({district})"
     facts = _lines([
         ('Transformator', sensor),
         ('Bezirk', district),
@@ -183,17 +196,19 @@ def build_scheduled_email(appt):
     ])
 
     body = (
-        "Der Grid Incident Agent hat einen Technikereinsatz veranlasst; "
-        "die Einsatzplanung hat daraufhin einen Termin vergeben.\n\n"
+        f"{anrede}\n\n"
+        "der Grid Incident Agent hat einen Technikereinsatz veranlasst; "
+        "die Einsatzplanung hat Ihnen daraufhin den folgenden Termin zugewiesen.\n\n"
         "ℹ️  Status: EINGEPLANT — der Techniker ist noch NICHT entsandt. "
-        "Der Einsatz gilt als bestätigt, sobald das Team den Termin annimmt.\n\n"
-        "➡️  Bitte den Termin im Team bestätigen und die Anfahrt vorbereiten.\n\n"
+        "Der Einsatz gilt als bestätigt, sobald Sie den Termin annehmen.\n\n"
+        "➡️  Bitte den Termin bestätigen und die Anfahrt vorbereiten.\n\n"
         f"{facts}\n\n"
+        "Mit freundlichen Grüßen\nIhr BS GRID Incident Agent\n\n"
         "—\nAutomatisch erzeugt vom BS GRID Notification Consumer (Event Mesh).\n"
         "Auslösendes Event: technicianScheduled\n"
     )
 
-    return _mail(DISPATCH_TO, subject, body, 'dispatch_technician', appt.get('alarmId'),
+    return _mail(to, subject, body, 'dispatch_technician', appt.get('alarmId'),
                  {'X-BSGRID-AppointmentId': appt.get('appointmentId', '')})
 
 
