@@ -48,6 +48,7 @@
         <b>⚡ BS GRID · Technician Scheduling</b>
         <span style="display:flex; align-items:center; gap:12px;">
             <a href="dashboard-fiori.html" target="_blank" rel="noopener" style="color:#fff; text-decoration:none; font-size:13px; font-weight:600; background:#46617a; padding:4px 12px; border-radius:14px;">Grid-Dashboard ↗</a>
+            <button onclick="clearAll()" title="Alle angezeigten Termine löschen (setzt nur die Ansicht zurück)" style="color:#fff; cursor:pointer; font-size:13px; font-weight:600; background:#8a3a3a; border:none; padding:5px 12px; border-radius:14px;">🗑 Leeren</button>
             <span class="status" id="status">Verbinde…</span>
         </span>
     </div>
@@ -128,6 +129,13 @@
         function persist() {
             try { localStorage.setItem(STORE_KEY, JSON.stringify(
                 { appts: Object.values(appointments).slice(-40), savedAt: Date.now() })); } catch (e) {}
+        }
+        function clearAll() {
+            Object.keys(appointments).forEach(k => delete appointments[k]);
+            try { localStorage.removeItem(STORE_KEY); } catch (e) {}
+            document.getElementById('apptList').innerHTML =
+                '<div class="empty" id="apptEmpty">Warte auf geplante Termine …</div>';
+            renderAvailability();
         }
         function restore() {
             try {
