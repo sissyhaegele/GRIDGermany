@@ -77,11 +77,17 @@ FROM_ADDR = 'bs-grid-agent@berlinerstadtwerke.example'
 # Folge-Event technicianScheduled (dann liegt ein konkreter Termin vor).
 ROUTES = {
     'escalate': {
-        'to': 'leitwarte@berlinerstadtwerke.example',
-        'team': 'Leitwarte',
-        'subject': '⚠️ Eskalation an die Leitwarte',
-        'lead': 'Der Grid Incident Agent hat einen Vorfall zur Eskalation an die Leitwarte übergeben.',
-        'action': 'Bitte den Vorfall aus der Leitwarte übernehmen und über das weitere Vorgehen entscheiden.',
+        # Demo-Gadget: kritische Vorfälle gehen "in Echtzeit" an den Regierenden
+        # Bürgermeister. Reine Mock-Adresse (.example = RFC 2606, nicht zustellbar).
+        'to': 'Regierender Bürgermeister von Berlin <kai.wegner@berlin.example>',
+        'cc': 'leitwarte@berlinerstadtwerke.example',
+        'salutation': 'Sehr geehrter Herr Regierender Bürgermeister,',
+        'team': 'Senatskanzlei / Leitwarte',
+        'subject': '⚠️ Eskalation — Regierender Bürgermeister in Kenntnis gesetzt',
+        'lead': 'Der Grid Incident Agent hat einen kritischen Netzvorfall eskaliert und '
+                'den Regierenden Bürgermeister von Berlin in Echtzeit informiert.',
+        'action': 'Bitte den Vorfall aus der Leitwarte übernehmen; das Büro des Regierenden '
+                  'Bürgermeisters ist zur Kenntnis nachrichtlich einbezogen.',
     },
 }
 
@@ -103,10 +109,12 @@ def _lines(pairs):
     return '\n'.join(f"{k.ljust(width)} : {v}" for k, v in kept)
 
 
-def _mail(to, subject, body, decision, alarm_id, extra_headers=None):
+def _mail(to, subject, body, decision, alarm_id, extra_headers=None, cc=None):
     msg = EmailMessage()
     msg['From'] = FROM_ADDR
     msg['To'] = to
+    if cc:
+        msg['Cc'] = cc
     msg['Subject'] = subject
     msg['Date'] = formatdate(localtime=True)
     msg['Message-ID'] = make_msgid(domain='berlinerstadtwerke.example')
@@ -141,13 +149,17 @@ def build_email(decision_data, route):
     agent = d.get('agent')
     trailer = f"agentActionTaken" + (f" • Agent: {agent}" if agent else '')
 
-    body = (f"{route['lead']}\n\n"
+    salutation = route.get('salutation', 'Sehr geehrte Damen und Herren,')
+    body = (f"{salutation}\n\n"
+            f"{route['lead']}\n\n"
             f"➡️  {route['action']}\n\n"
             f"{facts}{reason_block}\n\n"
+            f"Mit freundlichen Grüßen\nIhr BS GRID Incident Agent\n\n"
             f"—\nAutomatisch erzeugt vom BS GRID Notification Consumer (Event Mesh).\n"
             f"Auslösendes Event: {trailer}\n")
 
-    return _mail(route['to'], subject, body, d.get('decision'), d.get('alarmId'))
+    return _mail(route['to'], subject, body, d.get('decision'), d.get('alarmId'),
+                 cc=route.get('cc'))
 
 
 def build_scheduled_email(appt):
