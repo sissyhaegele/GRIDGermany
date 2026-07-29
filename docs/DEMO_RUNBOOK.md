@@ -43,28 +43,26 @@ python3 -m http.server 8000
 
 ---
 
-## 2 · Demo fahren – Alarme gezielt auslösen
+## 2 · Alarme – laufen automatisch
 
-Nicht auf Zufall warten (Default-Rate ist bewusst niedrig). Alarme über den
-Demo-Player abfeuern:
+Die Alarme kommen **automatisch** über den in `bsgrid` integrierten Taktgeber:
+**zufällige** Störfälle (Bezirk/Metrik/Typ) im festen Rhythmus — **1. nach ~15s,
+dann alle ~10s**, endlos bis Ctrl+C. Kein zweites Terminal, kein Extra-Befehl.
 
-**Standard-Demo** — verlässlicher Einstieg, dann Zufall:
+> Die Sensoren selbst alarmieren NICHT (in der Demo mit `SENSOR_ANOMALY_CHANCE=0`
+> gestartet) — sie liefern nur den Telemetrie-Hintergrund. So bleibt der Takt sauber.
+
+Falls du mal manuell nachhelfen willst (zweites Terminal):
 ```bash
-python3 demo_scenario.py
-```
-> Eröffnung ist gescriptet: **1. Kachel Beobachtung (monitor) nach ~10s,
-> 2. Kachel Technikereinsatz (dispatch)** — danach zufällige Alarme. So bleibt
-> die Botschaft "deterministisch UND nicht-deterministisch" sichtbar.
-
-**Ein einzelner Alarm** (schnell, spart Credits):
-```bash
-DEMO_MAX_ALARMS=1 python3 demo_scenario.py
+DEMO_MAX_ALARMS=1 python3 demo_scenario.py     # ein einzelner Alarm
 ```
 
-Steuer-Variablen: `DEMO_FIRST_DELAY` (s bis 1. Alarm, Default 2 → Kachel ~10s),
-`DEMO_GAP` (s dazwischen), `DEMO_MAX_ALARMS` (0 = alle),
-`DEMO_LEADIN` (0 = sofort zufällig, ohne festen Einstieg),
-`DEMO_RANDOM` (0 = alle 4 fest in Reihenfolge monitor→dispatch→escalate→restart).
+Steuer-Variablen (der Taktgeber in `start.sh` nutzt 15s / 10s):
+`DEMO_FIRST_DELAY` (s bis 1. Alarm), `DEMO_GAP` (s dazwischen),
+`DEMO_MAX_ALARMS` (0 = Dauerbetrieb, >0 = so viele dann Stopp),
+`DEMO_RANDOM` (0 = feste Szenarien), `DEMO_LEADIN` (1 = fester Einstieg monitor→dispatch).
+
+Taktgeber ganz abschalten: `BSGRID_NO_ALARMS=1 bsgrid`
 
 ---
 
@@ -106,4 +104,4 @@ open outbox/<datei>.eml     # öffnet im Mail-Client
 | Alarme im Log, aber **keine** Agent-Karte | LLM/Guthaben | Hyperspace/Anthropic prüfen, Agent in SAM re-deployen |
 | Keine E-Mail / kein Termin bei `dispatch_technician` | Backend-Dienste aus | `./scripts/services.sh` in Tab B läuft? |
 | Termin, aber Dashboard leer | Falscher Broker / nicht verbunden | Status-Badge im Dashboard, `config.env` prüfen |
-| Gar keine Anomalie | Rate zu niedrig | Über `demo_scenario.py` gezielt auslösen |
+| Gar keine Anomalie | Taktgeber aus / abgestürzt | Läuft `demo_scenario.py`? Log: `/tmp/bsgrid_demo.log`. Sonst `bsgrid` neu. |

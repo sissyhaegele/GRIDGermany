@@ -48,6 +48,10 @@ cleanup() {
     for pid in "${PIDS[@]}" "${SERVICE_PIDS[@]}"; do
         kill -SIGKILL "$pid" 2>/dev/null
     done
+    # Sicherheitsnetz: falls eine PID nicht griff
+    pkill -f demo_scenario.py 2>/dev/null
+    pkill -f scheduling_service.py 2>/dev/null
+    pkill -f notification_consumer.py 2>/dev/null
     echo "✅ All stopped."
     exit 0
 }
@@ -85,9 +89,12 @@ echo ""
 echo "🚀 Starte $COUNT Sensoren..."
 echo ""
 
+# Sensoren liefern nur Telemetrie-Hintergrund; ihre EIGENEN Zufallsalarme sind
+# aus (=0), damit der Alarm-Takt allein vom Taktgeber unten kommt (15s / 10s).
 for i in $(seq 0 $((COUNT - 1))); do
     SENSOR_ID="${ALL_SENSORS[$i]}"
-    SENSOR_ID="$SENSOR_ID" python3 remote_controlled_sensor.py --autostart > /dev/null 2>&1 &
+    SENSOR_ID="$SENSOR_ID" SENSOR_ANOMALY_CHANCE=0 \
+        python3 remote_controlled_sensor.py --autostart > /dev/null 2>&1 &
     pid=$!
     PIDS+=($pid)
     echo "  ✅ $SENSOR_ID gestartet (PID: $pid)"
@@ -123,9 +130,23 @@ if [ "${BSGRID_NO_SERVICES:-0}" != "1" ]; then
     fi
 fi
 
+# ── Alarm-Taktgeber mitstarten (zufällige Alarme im festen Takt) ──────
+# Erzeugt fortlaufend ZUFÄLLIGE Störfälle (Bezirk/Metrik/Typ), aber im
+# verlässlichen Rhythmus: 1. nach 15s, dann alle 10s. Endlos bis Ctrl+C.
+# Abschaltbar: BSGRID_NO_ALARMS=1 bsgrid   (dann kommen keine Alarme)
+if [ "${BSGRID_NO_ALARMS:-0}" != "1" ]; then
+    pkill -f demo_scenario.py 2>/dev/null
+    sleep 1
+    echo "🎬 Starte Alarm-Taktgeber (zufällig, 1. nach 15s, dann alle 10s)..."
+    DEMO_LEADIN=0 DEMO_RANDOM=1 DEMO_FIRST_DELAY=15 DEMO_GAP=10 \
+        python3 -u demo_scenario.py > /tmp/bsgrid_demo.log 2>&1 &
+    SERVICE_PIDS+=($!)
+fi
+
 echo ""
 echo "════════════════════════════════════════════════════════════════"
-echo "✅ Demo bereit. Ctrl+C beendet Sensoren UND Dienste."
+echo "✅ Demo bereit. Ctrl+C beendet Sensoren, Dienste UND Taktgeber."
+echo "   Alarme: zufällig, 1. nach ~15s, dann alle ~10s (+ Agent-Latenz)."
 echo "════════════════════════════════════════════════════════════════"
 echo ""
 

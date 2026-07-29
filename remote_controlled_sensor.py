@@ -433,11 +433,11 @@ class RemoteControlledSensor:
     # per sensor. Each alarm triggers one agent (LLM) call, so keep this LOW to
     # save credits. The fleet-wide rate scales with the number of sensors:
     #   rate ≈ ANOMALY_CHANCE × (number of sensors) alarms per second.
-    # Default 0.001 → light organic background (~1 alarm / 40s with 25 sensors).
-    # NOTE: scales with sensor count — with 100 sensors this is ~1 alarm / 10s
-    #   (more credits!). Lower it (e.g. 0.0003) if you run many sensors.
-    # Set 0 for NO random alarms (drive the demo purely via demo_scenario.py).
-    ANOMALY_CHANCE = float(os.getenv('SENSOR_ANOMALY_CHANCE', '0.001'))
+    # Default 0.0003 → very sparse background. In der bsgrid-Demo werden die
+    # Sensoren ohnehin mit SENSOR_ANOMALY_CHANCE=0 gestartet — dort liefert der
+    # Alarm-Taktgeber (demo_scenario.py) die Alarme im festen Rhythmus.
+    # Für einen selbstlaufenden Sensor-only-Betrieb hier hochdrehen (z.B. 0.003).
+    ANOMALY_CHANCE = float(os.getenv('SENSOR_ANOMALY_CHANCE', '0.0003'))
 
     # Alarm thresholds: (warning, critical) limits per metric.
     # Values beyond 'critical' → severity critical, beyond 'warning' → warning.

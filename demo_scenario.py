@@ -33,6 +33,7 @@ import paho.mqtt.client as mqtt
 import json
 import os
 import random
+import signal
 import ssl
 import sys
 import time
@@ -47,8 +48,8 @@ PASSWORD = os.getenv('SOLACE_PASSWORD')
 # Ziel: 1. Kachel im Dashboard nach ~10s. Die Karte = Alarm + Agent-Latenz (~8s),
 # daher wird der 1. Alarm nach ~2s gefeuert. Wenn dein Agent langsamer/schneller
 # ist, DEMO_FIRST_DELAY nachstellen. Alles per Env überschreibbar.
-FIRST_DELAY = float(os.getenv('DEMO_FIRST_DELAY', '2'))
-GAP = float(os.getenv('DEMO_GAP', '8'))
+FIRST_DELAY = float(os.getenv('DEMO_FIRST_DELAY', '15'))
+GAP = float(os.getenv('DEMO_GAP', '10'))
 MAX_ALARMS = int(os.getenv('DEMO_MAX_ALARMS', '0'))  # 0 = alle (bzw. 4 bei Zufall)
 RANDOM = os.getenv('DEMO_RANDOM', '1') != '0'         # 1 = zufällig variierte Alarme (Default)
 
@@ -197,32 +198,44 @@ def topic_for(sc):
     return f"bs/{sc['district']}/mv/transformer/powerline/alarmRaised/{sc['sensorId']}"
 
 
-def main():
+_shutdown = {'v': False}
+def _stop(*a):
+    _shutdown['v'] = True
+
+
+def _plan():
+    """Ergibt entweder eine feste Alarm-Liste (endlich) oder None für Dauerbetrieb.
+    Dauerbetrieb = RANDOM und kein MAX_ALARMS: jeder Alarm wird frisch zufällig
+    erzeugt, endlos im Takt FIRST_DELAY / GAP."""
+    if RANDOM and MAX_ALARMS <= 0:
+        return None                                   # ∞ zufällig
     if RANDOM:
-        # Gescripteter Einstieg, damit die Demo verlässlich eröffnet:
-        #   1. Karte = Beobachtung (monitor), 2. Karte = Technikereinsatz (dispatch).
-        # ALLES danach bleibt zufällig — die Botschaft "deterministisch UND
-        # nicht-deterministisch" bleibt erhalten. Abschaltbar mit DEMO_LEADIN=0.
-        lead_in = os.getenv('DEMO_LEADIN', '1') != '0'
-        count = MAX_ALARMS if MAX_ALARMS > 0 else 4
-        if lead_in:
-            fixed = scenarios()[:2]                       # [monitor, dispatch]
-            extra = [random_scenario() for _ in range(max(0, count - len(fixed)))]
-            scs = (fixed + extra)[:count]
-        else:
-            scs = [random_scenario() for _ in range(count)]
-    else:
-        scs = scenarios()
-        if MAX_ALARMS > 0:
-            scs = scs[:MAX_ALARMS]
+        lead_in = os.getenv('DEMO_LEADIN', '0') != '0'   # Default AUS: alles Zufall
+        base = scenarios()[:2] if lead_in else []
+        return (base + [random_scenario()
+                        for _ in range(max(0, MAX_ALARMS - len(base)))])[:MAX_ALARMS]
+    scs = scenarios()
+    return scs[:MAX_ALARMS] if MAX_ALARMS > 0 else scs
+
+
+def main():
+    signal.signal(signal.SIGINT, _stop)
+    signal.signal(signal.SIGTERM, _stop)
+
+    planned = _plan()
+    continuous = planned is None
+    total = '∞' if continuous else str(len(planned))
 
     print(f"╔{'═'*60}╗")
     print(f"║  GRIDGermany Demo Scenario Player{' '*26}║")
     print(f"╚{'═'*60}╝")
     print(f"📡 Broker: {BROKER}:{PORT}")
-    print(f"🎬 {len(scs)} Alarme ({'zufällig' if RANDOM else 'fest'})  |  "
+    print(f"🎬 {total} Alarme ({'zufällig' if RANDOM else 'fest'})  |  "
           f"1. nach {FIRST_DELAY:.0f}s, dann alle {GAP:.0f}s")
-    print(f"💡 = {len(scs)} Agent-Aufrufe (Credits). Ctrl+C bricht ab.\n")
+    if continuous:
+        print("💡 Dauerbetrieb: jeder Alarm = 1 Agent-Aufruf (Credits!). Ctrl+C stoppt.\n")
+    else:
+        print(f"💡 = {len(planned)} Agent-Aufrufe (Credits). Ctrl+C bricht ab.\n")
 
     client_id = f"demo-scenario-{int(time.time())}"
     try:
@@ -237,19 +250,33 @@ def main():
     client.loop_start()
     time.sleep(1.5)
 
+    def _sleep(seconds):
+        """Wartet unterbrechbar, damit Ctrl+C/SIGTERM sofort greift."""
+        end = seconds
+        step = 0.25
+        while end > 0 and not _shutdown['v']:
+            time.sleep(min(step, end))
+            end -= step
+
     try:
-        for i, sc in enumerate(scs):
-            wait = FIRST_DELAY if i == 0 else GAP
-            print(f"⏳ warte {wait:.0f}s bis Alarm {i+1}/{len(scs)} …")
-            time.sleep(wait)
+        i = 0
+        while not _shutdown['v']:
+            _sleep(FIRST_DELAY if i == 0 else GAP)
+            if _shutdown['v']:
+                break
+            sc = random_scenario() if continuous else planned[i]
             payload = build_alarm(sc)
             client.publish(topic_for(sc), json.dumps(payload), qos=1)
-            print(f"🚨 [{i+1}/{len(scs)}] {sc['severity'].upper()} {sc['alarmType']}="
+            n = f"{i+1}" + ('' if continuous else f"/{len(planned)}")
+            print(f"🚨 [{n}] {sc['severity'].upper()} {sc['alarmType']}="
                   f"{sc['value']}{sc['unit']} @ {sc['sensorId']} → {topic_for(sc)}")
-        print("\n✅ Szenario komplett gespielt. Die Agent-Entscheidungen erscheinen "
-              "im Dashboard / als E-Mails.")
-    except KeyboardInterrupt:
-        print("\n🛑 Abgebrochen.")
+            i += 1
+            if not continuous and i >= len(planned):
+                break
+        if not continuous:
+            print("\n✅ Szenario komplett gespielt.")
+        else:
+            print("\n🛑 Gestoppt.")
     finally:
         time.sleep(0.5)
         client.loop_stop()
