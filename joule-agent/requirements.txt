@@ -1,0 +1,3 @@
+# Grid Incident Agent — Pro-Code-Abhängigkeiten (Joule Studio)
+solace-pubsubplus>=1.11.0   # SMF-native Client (manylinux/glibc-Wheel)
+Flask>=3.0                   # A2A/HTTP-Server + Health-Endpoint

@@ -1,0 +1,30 @@
+# asset.yaml — Umgebung für den Grid Incident Agent (Joule Studio, Pro-Code)
+#
+# Diese Environment-Variablen liefern dem SMF-Subscriber (grid_subscriber.py)
+# die Broker-Verbindung. Der Agent verbindet sich AUSGEHEND zum Broker —
+# kein eingehender Endpoint, kein RDP, kein OAuth.
+#
+# SICHERHEIT: SOLACE_PASSWORD NICHT hier im Klartext einchecken. In Joule Studio
+# als SECRET/verschlüsselte Variable hinterlegen. Der Wert steht in config.env
+# des Demo-Repos (gitignored).
+
+env:
+  # --- Broker (SAP Advanced Event Mesh / Solace Cloud) ---
+  SOLACE_HOST: "tcps://mr-connection-89lyiztvo72.messaging.solace.cloud:55443"  # SMF/TLS
+  SOLACE_VPN_NAME: "ger_dmi"
+  SOLACE_USERNAME: "solace-cloud-client"
+  SOLACE_PASSWORD: "${SECRET_SOLACE_PASSWORD}"   # als Secret setzen, nicht im Klartext
+
+  # --- Topics (SMF-Wildcards '*'/'>', NICHT MQTT '+'/'#') ---
+  SOLACE_SUBSCRIBE_TOPIC: "bs/*/mv/transformer/powerline/alarmRaised/*"
+  SOLACE_PUBLISH_TOPIC: "bs/{district}/mv/transformer/powerline/agentActionTaken/{sensorId}"
+
+  # --- Lokaler A2A-Aufruf des Agents (im selben Container) ---
+  A2A_LOCAL_URL: "http://localhost:8080/"
+  JOULE_A2A_METHOD: "message/send"
+  A2A_PORT: "8080"
+  AGENT_NAME: "joule-grid-incident-agent"
+
+# Netzwerk: der Agent-Container braucht AUSGEHENDEN Zugriff auf
+#   mr-connection-89lyiztvo72.messaging.solace.cloud:55443  (SMF/TLS)
+# Falls die Runtime Egress-Regeln hat, diesen Host/Port freigeben.
