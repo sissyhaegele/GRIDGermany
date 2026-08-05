@@ -26,6 +26,7 @@ Optional (Env):
     DEMO_MAX_ALARMS   nur die ersten N Szenarien spielen (Default alle 4)
     DEMO_RANDOM       1 = zufällig (mit festem Lead-in), 0 = ganz fest (Default 1)
     DEMO_LEADIN       1 = feste erste 2 Karten, 0 = sofort zufällig (Default 1)
+    DEMO_MAX_MINUTES  Auto-Stopp nach N Minuten gegen Token-Verbrauch (Default 2; 0 = aus)
     SOLACE_HOST/PORT/USERNAME/PASSWORD  wie üblich
 """
 
@@ -52,6 +53,10 @@ FIRST_DELAY = float(os.getenv('DEMO_FIRST_DELAY', '15'))
 GAP = float(os.getenv('DEMO_GAP', '10'))
 MAX_ALARMS = int(os.getenv('DEMO_MAX_ALARMS', '0'))  # 0 = alle (bzw. 4 bei Zufall)
 RANDOM = os.getenv('DEMO_RANDOM', '1') != '0'         # 1 = zufällig variierte Alarme (Default)
+# Not-Aus gegen Token-Verbrauch: nach so vielen MINUTEN stoppt der Taktgeber
+# automatisch — auch im Dauerbetrieb, auch wenn das Terminal vergessen wird.
+# Neustart der Demo bringt frische 2 Minuten. 0 = kein Zeitlimit.
+MAX_MINUTES = float(os.getenv('DEMO_MAX_MINUTES', '2'))
 
 
 def _recent(metric, start, end, n, base, anomaly_tail=1, correlate=True):
@@ -232,6 +237,9 @@ def main():
     print(f"📡 Broker: {BROKER}:{PORT}")
     print(f"🎬 {total} Alarme ({'zufällig' if RANDOM else 'fest'})  |  "
           f"1. nach {FIRST_DELAY:.0f}s, dann alle {GAP:.0f}s")
+    if MAX_MINUTES > 0:
+        print(f"⏱️  Auto-Stopp nach {MAX_MINUTES:.0f} Min — danach keine Agent-Aufrufe mehr "
+              f"(Token-Schutz). Neu starten für weitere.")
     if continuous:
         print("💡 Dauerbetrieb: jeder Alarm = 1 Agent-Aufruf (Credits!). Ctrl+C stoppt.\n")
     else:
@@ -258,11 +266,19 @@ def main():
             time.sleep(min(step, end))
             end -= step
 
+    deadline = (time.monotonic() + MAX_MINUTES * 60) if MAX_MINUTES > 0 else None
+    stopped_by_time = False
     try:
         i = 0
         while not _shutdown['v']:
+            if deadline is not None and time.monotonic() >= deadline:
+                stopped_by_time = True
+                break
             _sleep(FIRST_DELAY if i == 0 else GAP)
             if _shutdown['v']:
+                break
+            if deadline is not None and time.monotonic() >= deadline:
+                stopped_by_time = True
                 break
             sc = random_scenario() if continuous else planned[i]
             payload = build_alarm(sc)
@@ -273,7 +289,10 @@ def main():
             i += 1
             if not continuous and i >= len(planned):
                 break
-        if not continuous:
+        if stopped_by_time:
+            print(f"\n⏱️  Zeitlimit erreicht ({MAX_MINUTES:.0f} Min) — Taktgeber gestoppt, "
+                  f"keine weiteren Agent-Aufrufe. Demo neu starten für weitere.")
+        elif not continuous:
             print("\n✅ Szenario komplett gespielt.")
         else:
             print("\n🛑 Gestoppt.")
