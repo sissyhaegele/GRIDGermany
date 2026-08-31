@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -48,23 +48,23 @@
         <b>⚡ BS GRID · Technician Scheduling</b>
         <span style="display:flex; align-items:center; gap:12px;">
             <a href="dashboard-fiori.html" target="_blank" rel="noopener" style="color:#fff; text-decoration:none; font-size:13px; font-weight:600; background:#46617a; padding:4px 12px; border-radius:14px;">Grid-Dashboard ↗</a>
-            <button onclick="clearAll()" title="Alle angezeigten Termine löschen (setzt nur die Ansicht zurück)" style="color:#fff; cursor:pointer; font-size:13px; font-weight:600; background:#8a3a3a; border:none; padding:5px 12px; border-radius:14px;">🗑 Leeren</button>
-            <span class="status" id="status">Verbinde…</span>
+            <button onclick="clearAll()" title="Clear all shown appointments (resets the view only)" style="color:#fff; cursor:pointer; font-size:13px; font-weight:600; background:#8a3a3a; border:none; padding:5px 12px; border-radius:14px;">🗑 Clear</button>
+            <span class="status" id="status">Connecting…</span>
         </span>
     </div>
     <div class="page">
-        <h1>Einsatzplanung</h1>
-        <div class="sub">Reagiert auf Technikereinsätze des Grid Incident Agent · Event: technicianScheduled</div>
+        <h1>Dispatch Scheduling</h1>
+        <div class="sub">Reacts to technician dispatches by the Grid Incident Agent · Event: technicianScheduled</div>
 
-        <div class="section-title">Technikerverfügbarkeit</div>
+        <div class="section-title">Technician Availability</div>
         <div class="avail-grid" id="availGrid"></div>
 
-        <div class="section-title">Geplante Termine</div>
+        <div class="section-title">Scheduled Appointments</div>
         <div class="appts" id="apptList">
-            <div class="empty" id="apptEmpty">Warte auf geplante Termine …</div>
+            <div class="empty" id="apptEmpty">Waiting for scheduled appointments …</div>
         </div>
     </div>
-    <div class="footer">BS GRID POC · Berliner Stadtwerke · Ein weiterer Event-Consumer im Mesh</div>
+    <div class="footer">BS GRID POC · Berliner Stadtwerke · Another event consumer in the mesh</div>
 
     <script>
         const SUB_TOPIC = 'bs/*/mv/transformer/powerline/technicianScheduled/*';
@@ -99,7 +99,7 @@
                 const rows = techs.map(t => {
                     const n = counts[t] || 0;
                     const cls = n === 0 ? 'ok' : (n <= 2 ? 'warn' : 'busy');
-                    const label = n === 0 ? 'frei' : `${n} Termin${n > 1 ? 'e' : ''}`;
+                    const label = n === 0 ? 'free' : `${n} appt${n > 1 ? 's' : ''}`;
                     return `<div class="tech-row"><span class="tech-left"><span class="dot ${cls}"></span>${t}</span>` +
                            `<span class="tech-meta">${label}</span></div>`;
                 }).join('');
@@ -134,7 +134,7 @@
             Object.keys(appointments).forEach(k => delete appointments[k]);
             try { localStorage.removeItem(STORE_KEY); } catch (e) {}
             document.getElementById('apptList').innerHTML =
-                '<div class="empty" id="apptEmpty">Warte auf geplante Termine …</div>';
+                '<div class="empty" id="apptEmpty">Waiting for scheduled appointments …</div>';
             renderAvailability();
         }
         function restore() {
@@ -163,12 +163,12 @@
                 sp.password = window.SOLACE_CONFIG.password;
                 session = solace.SolclientFactory.createSession(sp);
                 session.on(solace.SessionEventCode.UP_NOTICE, () => {
-                    connected = true; setStatus('Verbunden', true);
+                    connected = true; setStatus('Connected', true);
                     const sub = solace.SolclientFactory.createTopicDestination(SUB_TOPIC);
                     session.subscribe(sub, true, SUB_TOPIC, 10000);
                 });
-                session.on(solace.SessionEventCode.CONNECT_FAILED_ERROR, () => setStatus('Verbindung fehlgeschlagen', false));
-                session.on(solace.SessionEventCode.DISCONNECTED, () => { connected = false; setStatus('Getrennt', false); });
+                session.on(solace.SessionEventCode.CONNECT_FAILED_ERROR, () => setStatus('Connection failed', false));
+                session.on(solace.SessionEventCode.DISCONNECTED, () => { connected = false; setStatus('Disconnected', false); });
                 session.on(solace.SessionEventCode.MESSAGE, (message) => {
                     try {
                         const sdt = message.getSdtContainer && message.getSdtContainer();
@@ -192,7 +192,7 @@
             const go = () => {
                 if (typeof solace !== 'undefined') connect();
                 else if (tries++ < 20) setTimeout(go, 300);
-                else setStatus('Solace-Library fehlt', false);
+                else setStatus('Solace library missing', false);
             };
             go();
         });

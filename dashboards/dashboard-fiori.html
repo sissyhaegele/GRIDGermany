@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -951,7 +951,7 @@
         </div>
         <div class="shell-spacer"></div>
         <div class="shell-actions">
-            <a href="scheduling.html" target="_blank" rel="noopener" style="color: #fff; text-decoration: none; font-size: 13px; font-weight: 600; background: rgba(255,255,255,0.14); padding: 5px 12px; border-radius: 14px;">🔧 Einsatzplanung ↗</a>
+            <a href="scheduling.html" target="_blank" rel="noopener" style="color: #fff; text-decoration: none; font-size: 13px; font-weight: 600; background: rgba(255,255,255,0.14); padding: 5px 12px; border-radius: 14px;">🔧 Dispatch Scheduling ↗</a>
             <span style="color: rgba(255,255,255,0.7); font-size: 12px;">SMF Protocol</span>
         </div>
     </div>
@@ -982,11 +982,11 @@
             <div class="kpi-tile">
                 <div class="kpi-tooltip">
                     <div class="kpi-tooltip-title">Average Voltage</div>
-                    Die Netzspannung zeigt die elektrische Spannung im Mittelspannungsnetz. Abweichungen können auf Lastprobleme oder Transformatorstörungen hinweisen.
+                    Grid voltage shows the electrical voltage in the medium-voltage network. Deviations can indicate load problems or transformer faults.
                     <div class="kpi-tooltip-range">
                         <span class="range-normal">✓ Normal: 228 - 232 V</span>
-                        <span class="range-warning">⚠ Warnung: &lt;225 V oder &gt;235 V</span>
-                        <span class="range-critical">✕ Kritisch: &lt;220 V oder &gt;240 V</span>
+                        <span class="range-warning">⚠ Warning: &lt;225 V or &gt;235 V</span>
+                        <span class="range-critical">✕ Critical: &lt;220 V or &gt;240 V</span>
                     </div>
                 </div>
                 <div class="kpi-header">
@@ -998,11 +998,11 @@
             <div class="kpi-tile">
                 <div class="kpi-tooltip">
                     <div class="kpi-tooltip-title">Average Frequency</div>
-                    Die Netzfrequenz ist der kritischste Indikator für Netzstabilität. Sie zeigt das Gleichgewicht zwischen Stromerzeugung und -verbrauch. Bereits kleine Abweichungen erfordern sofortige Maßnahmen (Swissgrid-Referenz).
+                    Grid frequency is the most critical indicator of grid stability. It reflects the balance between power generation and consumption. Even small deviations require immediate action (Swissgrid reference).
                     <div class="kpi-tooltip-range">
                         <span class="range-normal">✓ Normal: 49.98 - 50.02 Hz</span>
-                        <span class="range-warning">⚠ Warnung: &lt;49.95 oder &gt;50.05 Hz</span>
-                        <span class="range-critical">✕ Kritisch: &lt;49.80 oder &gt;50.20 Hz</span>
+                        <span class="range-warning">⚠ Warning: &lt;49.95 or &gt;50.05 Hz</span>
+                        <span class="range-critical">✕ Critical: &lt;49.80 or &gt;50.20 Hz</span>
                     </div>
                 </div>
                 <div class="kpi-header">
@@ -1014,11 +1014,11 @@
             <div class="kpi-tile">
                 <div class="kpi-tooltip">
                     <div class="kpi-tooltip-title">Average Load</div>
-                    Die Transformatorauslastung zeigt, wie stark die Transformatoren beansprucht werden. Hohe Auslastung führt zu erhöhter Wärmeentwicklung und verkürzt die Lebensdauer der Komponenten.
+                    Transformer load shows how heavily the transformers are stressed. High load leads to increased heat and shortens component life.
                     <div class="kpi-tooltip-range">
                         <span class="range-normal">✓ Normal: 50 - 70%</span>
-                        <span class="range-warning">⚠ Warnung: &gt;85%</span>
-                        <span class="range-critical">✕ Kritisch: &gt;95%</span>
+                        <span class="range-warning">⚠ Warning: &gt;85%</span>
+                        <span class="range-critical">✕ Critical: &gt;95%</span>
                     </div>
                 </div>
                 <div class="kpi-header">
@@ -1030,10 +1030,10 @@
             <div class="kpi-tile">
                 <div class="kpi-tooltip">
                     <div class="kpi-tooltip-title">Active Sensors</div>
-                    Anzahl der aktuell aktiven Sensoren im Netz. Jeder Sensor überwacht einen Transformator und sendet Statusmeldungen im Sekundentakt. Bei Ausfall eines Sensors wird automatisch ein Alarm ausgelöst.
+                    Number of currently active sensors in the grid. Each sensor monitors one transformer and sends status updates every second. If a sensor fails, an alarm is raised automatically.
                     <div class="kpi-tooltip-range">
-                        <span class="range-normal">✓ Alle Sensoren online</span>
-                        <span class="range-warning">⚠ Sensoren offline → prüfen</span>
+                        <span class="range-normal">✓ All sensors online</span>
+                        <span class="range-warning">⚠ Sensors offline → check</span>
                     </div>
                 </div>
                 <div class="kpi-header">
@@ -1044,11 +1044,11 @@
             </div>
             <div class="kpi-tile">
                 <div class="kpi-tooltip">
-                    <div class="kpi-tooltip-title">Events pro Sekunde</div>
-                    Durchsatz der Event-Streaming-Pipeline. Jeder Sensor sendet 1 Event/Sekunde. Bei 100 aktiven Sensoren werden 100 Events/Sekunde verarbeitet – in Echtzeit über SAP Advanced Event Mesh (Solace).
+                    <div class="kpi-tooltip-title">Events per second</div>
+                    Throughput of the event-streaming pipeline. Each sensor sends 1 event/second. With 100 active sensors, 100 events/second are processed – in real time via SAP Advanced Event Mesh (Solace).
                     <div class="kpi-tooltip-range">
                         <span class="range-normal">✓ Events = Active Sensors</span>
-                        <span class="range-warning">⚠ Abweichung → Netzwerkprobleme</span>
+                        <span class="range-warning">⚠ Deviation → network issues</span>
                     </div>
                 </div>
                 <div class="kpi-header">
@@ -1059,12 +1059,12 @@
             </div>
             <div class="kpi-tile">
                 <div class="kpi-tooltip">
-                    <div class="kpi-tooltip-title">Anomalien</div>
-                    Anzahl der Sensoren mit kritischen Abweichungen. Eine Anomalie wird erkannt wenn Frequenz, Spannung, Last oder Temperatur außerhalb der Grenzwerte liegen. Sofortige Reaktion erforderlich!
+                    <div class="kpi-tooltip-title">Anomalies</div>
+                    Number of sensors with critical deviations. An anomaly is detected when frequency, voltage, load or temperature is outside its limits. Immediate response required!
                     <div class="kpi-tooltip-range">
-                        <span class="range-normal">✓ 0 Anomalien = stabiles Netz</span>
-                        <span class="range-warning">⚠ Anomalie = Grid Stress</span>
-                        <span class="range-critical">✕ Mehrere = Notfallplan prüfen</span>
+                        <span class="range-normal">✓ 0 anomalies = stable grid</span>
+                        <span class="range-warning">⚠ Anomaly = grid stress</span>
+                        <span class="range-critical">✕ Multiple = check emergency plan</span>
                     </div>
                 </div>
                 <div class="kpi-header">
@@ -1138,14 +1138,14 @@
             <div class="section-title">Grid Incident Agent</div>
             <div class="agent-list" id="agentActions">
                 <div class="agent-empty" id="agentEmpty">
-                    Warte auf Agent-Entscheidungen …
+                    Waiting for agent decisions …
                 </div>
             </div>
         </div>
 
         <!-- Sensor Cards -->
         <div class="sensor-section">
-            <div class="section-title">Aktive Sensoren</div>
+            <div class="section-title">Active Sensors</div>
             <div class="sensor-grid" id="sensorGrid">
                 <!-- Sensor cards will be added dynamically -->
             </div>
@@ -1154,7 +1154,7 @@
         <!-- Event Log -->
         <div class="log-section">
             <div class="log-header" onclick="toggleLog()" style="cursor: pointer;">
-                <div class="log-title"><span id="logChevron">▾</span> Event-Log</div>
+                <div class="log-title"><span id="logChevron">▾</span> Event Log</div>
                 <div class="log-stats">
                     <span><span class="log-stat-value" id="liveEventRate">0</span> events/sec</span>
                     <span>Total: <span class="log-stat-value" id="totalEvents">0</span></span>
@@ -1173,8 +1173,8 @@
     <div class="detail-modal" id="detailModal" onclick="if(event.target===this)closeAgentDetail()">
         <div class="detail-panel">
             <div class="detail-header">
-                <span>Agent-Entscheidung — Details</span>
-                <button class="detail-close" onclick="closeAgentDetail()" aria-label="Schließen">×</button>
+                <span>Agent Decision — Details</span>
+                <button class="detail-close" onclick="closeAgentDetail()" aria-label="Close">×</button>
             </div>
             <div class="detail-body" id="detailBody"></div>
         </div>
@@ -1201,10 +1201,10 @@
         const AGENT_ACTION_TOPIC = 'bs/*/mv/transformer/powerline/agentActionTaken/*';
 
         const DECISION_LABELS = {
-            'dispatch_technician': '👷 Techniker entsandt',
-            'restart_sensor': '🔄 Sensor-Neustart',
-            'monitor': '👁️ Beobachtung',
-            'escalate': '⚠️ Eskalation'
+            'dispatch_technician': '👷 Technician dispatched',
+            'restart_sensor': '🔄 Sensor restart',
+            'monitor': '👁️ Monitoring',
+            'escalate': '⚠️ Escalation'
         };
         
         const DISTRICTS = {
@@ -1261,7 +1261,7 @@
                 // älteste zuerst einspielen, damit prepend die neueste oben zeigt
                 for (let i = decs.length - 1; i >= 0; i--) addAgentAction(decs[i], true);
                 recentDecisions = decs.slice(0, STORE_MAX);
-                if (decs.length) addLog(`Wiederhergestellt: ${decs.length} frühere Agent-Entscheidung(en)`, 'info');
+                if (decs.length) addLog(`Restored: ${decs.length} earlier agent decision(s)`, 'info');
             } catch (e) { /* korrupt → ignorieren */ }
         }
         
@@ -1296,7 +1296,7 @@
                         <div class="sensor-name">${sensorId}</div>
                         <div class="sensor-district">${getDistrictName(sensorId)}</div>
                     </div>
-                    <span class="sensor-status offline" id="status-${sensorId}">Offline</span>
+                    <span class="sensor-status offline" id="status-${sensorId}">offline</span>
                 </div>
                 <div class="sensor-metrics">
                     <div class="metric-item">
@@ -1357,7 +1357,7 @@
             // Der Anomalie-KPI wird über alarmRaised-Events gezählt (siehe oben) —
             // hier nur die Rückkehr in den Normalzustand protokollieren.
             if (!isAnomaly && wasAnomaly) {
-                addLog(`${sensorId}: Grid stabilisiert`, 'info');
+                addLog(`${sensorId}: grid stabilized`, 'info');
             }
             
             sensorData[sensorId] = {
@@ -1640,7 +1640,7 @@
             const label = DECISION_LABELS[decision] || decision;
             const time = data.timestamp ? new Date(data.timestamp).toLocaleTimeString('de-DE') : '--:--:--';
             const confidence = typeof data.confidence === 'number'
-                ? `Konfidenz: ${Math.round(data.confidence * 100)} %` : '';
+                ? `Confidence: ${Math.round(data.confidence * 100)} %` : '';
 
             const card = document.createElement('div');
             card.className = `agent-card decision-${decision}`;
@@ -1672,7 +1672,7 @@
                 recentDecisions.unshift(data);
                 recentDecisions = recentDecisions.slice(0, STORE_MAX);
                 persistState();
-                addLog(`🤖 Agent: ${label} für ${data.sensorId || '?'}`, 'anomaly');
+                addLog(`🤖 Agent: ${label} for ${data.sensorId || '?'}`, 'anomaly');
             }
         }
 
@@ -1695,33 +1695,33 @@
                 const thrTxt = 'max' in thr ? `max ${thr.max}` :
                     ('nominal' in thr ? `${thr.nominal} ± ${thr.maxDeviation}` : '—');
                 alarmHtml = `
-                    <div class="detail-section-title">Auslösender Alarm</div>
+                    <div class="detail-section-title">Triggering Alarm</div>
                     ${rows({
-                        'Typ': alarm.alarmType, 'Wert': `${alarm.value} ${alarm.unit || ''}`,
-                        'Grenzwert': thrTxt, 'Severity': alarm.severity,
-                        'Bezirk': (alarm.location || {}).district || '—',
-                        'Alarm-ID': alarm.alarmId
+                        'Type': alarm.alarmType, 'Value': `${alarm.value} ${alarm.unit || ''}`,
+                        'Threshold': thrTxt, 'Severity': alarm.severity,
+                        'District': (alarm.location || {}).district || '—',
+                        'Alarm ID': alarm.alarmId
                     })}
-                    <div class="detail-section-title">Verlauf vor der Entscheidung (recentMetrics)</div>
+                    <div class="detail-section-title">History before the decision (recentMetrics)</div>
                     ${renderTrend(alarm)}
                 `;
             } else {
-                alarmHtml = `<div class="detail-note">Der auslösende Alarm (${decision.alarmId || '?'})
-                    wurde nicht empfangen — er kam evtl. vor dem Verbinden des Dashboards.
-                    Es werden nur die Entscheidungsdaten angezeigt.</div>`;
+                alarmHtml = `<div class="detail-note">The triggering alarm (${decision.alarmId || '?'})
+                    was not received — it may have arrived before the dashboard connected.
+                    Only the decision data is shown.</div>`;
             }
 
             document.getElementById('detailBody').innerHTML = `
                 <div class="detail-decision decision-${decision.decision}">${label}</div>
-                <div class="detail-section-title">Entscheidung des Agents</div>
+                <div class="detail-section-title">Agent Decision</div>
                 ${rows({
                     'Sensor': decision.sensorId || '—',
-                    'Konfidenz': conf,
+                    'Confidence': conf,
                     'Agent': decision.agent || '—',
-                    ...(params.priority ? {'Priorität': params.priority} : {}),
-                    ...(params.targetTeam ? {'Zielteam': params.targetTeam} : {})
+                    ...(params.priority ? {'Priority': params.priority} : {}),
+                    ...(params.targetTeam ? {'Target team': params.targetTeam} : {})
                 })}
-                <div class="detail-section-title">Begründung</div>
+                <div class="detail-section-title">Reasoning</div>
                 <div class="detail-reasoning">${(decision.reasoning || '—')
                     .replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</div>
                 ${alarmHtml}
@@ -1737,7 +1737,7 @@
         function renderTrend(alarm) {
             const metric = alarm.alarmType;
             const pts = (alarm.recentMetrics || []).map(m => m[metric]).filter(v => typeof v === 'number');
-            if (pts.length < 2) return '<div class="detail-note">Kein Verlauf verfügbar.</div>';
+            if (pts.length < 2) return '<div class="detail-note">No history available.</div>';
             const min = Math.min(...pts), max = Math.max(...pts), span = (max - min) || 1;
             const W = 260, H = 70, n = pts.length, bw = W / n;
             const bars = pts.map((v, i) => {
