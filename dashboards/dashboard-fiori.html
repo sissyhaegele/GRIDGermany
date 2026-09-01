@@ -1598,11 +1598,11 @@
                             // Nur bedeutsame Events loggen — normale Telemetrie
                             // aktualisiert nur Kacheln/KPIs, flutet aber nicht den Log.
                             if (isNew) {
-                                addLog(`Neuer Sensor: ${sensorId} (${getDistrictName(sensorId)})`, 'info');
+                                addLog(`New sensor: ${sensorId} (${getDistrictName(sensorId)})`, 'info');
                             } else if (isAnomaly) {
                                 const m = data.metrics;
                                 addLog(`${sensorId}: ${m.voltage.toFixed(0)}V | ${m.frequency.toFixed(2)}Hz | ` +
-                                       `${m.load.toFixed(0)}% | ${m.temperature.toFixed(0)}°C — ANOMALIE`, 'anomaly');
+                                       `${m.load.toFixed(0)}% | ${m.temperature.toFixed(0)}°C — ANOMALY`, 'anomaly');
                             }
                         }
                     } catch (e) {
@@ -1777,7 +1777,7 @@
             let tries = 0;
             const autoConnect = () => {
                 if (typeof solace !== 'undefined') {
-                    addLog('Solace library ready — verbinde automatisch…', 'info');
+                    addLog('Solace library ready — connecting automatically…', 'info');
                     if (!connected) connect();
                 } else if (tries++ < 20) {
                     setTimeout(autoConnect, 300);
