@@ -158,7 +158,15 @@ class SchedulingService:
                     if best is None or s < best[0]:
                         best = (s, tech)
                     break
-        slot, tech = best
+        if best is None:
+            # Alle Techniker des Teams im betrachteten Fenster voll — statt
+            # abzustürzen (TypeError) den erstbesten Slot des ersten Technikers
+            # nehmen (Demo-Fallback; in echt würde man das Fenster erweitern).
+            tech = ROSTER[team][0]
+            slot = next(_next_business_slots(now))
+            print(f"⚠️  Team {team} ausgelastet — Fallback-Slot für {tech}")
+        else:
+            slot, tech = best
         self.assigned[tech].add(slot.isoformat())
         return team, tech, slot
 
@@ -186,20 +194,33 @@ class SchedulingService:
 
         # Auslöser: bevorzugt schedulingRequested (vom Workflow), sonst direkt
         # die dispatch_technician-Entscheidung (Fallback ohne Workflow).
+        decision = data.get('decision')
         if 'schedulingRequested' in message.topic:
             # Falls der Workflow das 'decision'-Feld mitschickt (weil er ohne
             # Switch alles publiziert), hier defensiv filtern — nur Technikereinsätze.
-            if data.get('decision') and data.get('decision') != 'dispatch_technician':
+            if decision and decision != 'dispatch_technician':
+                print(f"·  skip: schedulingRequested mit decision={decision!r} (kein dispatch)")
                 return
-        elif data.get('decision') != 'dispatch_technician':
+        elif decision != 'dispatch_technician':
+            # Häufigster „kein Termin"-Fall: der Agent hat gar nicht dispatch gewählt.
+            print(f"·  {data.get('sensorId','?')}: decision={decision!r} → kein Technikereinsatz")
             return
 
         alarm_id = data.get('alarmId')
-        if alarm_id in self.processed:
+        if not alarm_id:
+            # Ohne alarmId greift die Dedup nicht sinnvoll — trotzdem einplanen,
+            # aber sichtbar machen (könnte doppelte Termine erzeugen).
+            print(f"⚠️  dispatch OHNE alarmId für {data.get('sensorId','?')} — plane trotzdem ein")
+        elif alarm_id in self.processed:
+            print(f"·  dispatch {alarm_id} bereits verarbeitet (Dedup) → übersprungen")
             return          # deckt auch den Fall ab, dass BEIDE Events zum selben Alarm kommen
-        self.processed.add(alarm_id)
+        if alarm_id:
+            self.processed.add(alarm_id)
 
         district = _district_of(data)
+        if district == '—':
+            print(f"⚠️  Bezirk unbekannt für {data.get('sensorId','?')} "
+                  f"(location={data.get('location')}) → Fallback-Team")
         team, tech, slot = self._schedule(district)
         appt = {
             'appointmentId': f"APT-{data.get('sensorId','?')}-{datetime.now().strftime('%Y%m%d%H%M%S')}",
