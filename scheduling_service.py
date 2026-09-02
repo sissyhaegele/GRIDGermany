@@ -63,18 +63,57 @@ CODE_DISTRICT = {
     'PRZ': 'prenzlauer berg', 'FRH': 'friedrichshain', 'NEU': 'neukoelln',
     'TMP': 'tempelhof', 'SCH': 'schoeneberg', 'WED': 'wedding', 'SPA': 'spandau',
 }
+# Normalisierung eingehender Bezirksnamen auf die DISTRICT_TEAM-Schlüssel.
+# Fängt Umlaut-/Schreibvarianten UND englische Namen ab, die der (englische)
+# Agent liefern könnte — sonst fiele der Bezirk auf den Fallback 'Team Mitte'.
+DISTRICT_ALIASES = {
+    'neukölln': 'neukoelln', 'schöneberg': 'schoeneberg',
+    'prenzlauerberg': 'prenzlauer berg', 'prenzlauer-berg': 'prenzlauer berg',
+    'mid': 'mitte', 'center': 'mitte', 'centre': 'mitte',
+}
 _WD = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So']
 
 
+def _normalize_district(name):
+    """Bezirksnamen auf einen DISTRICT_TEAM-Schlüssel abbilden (case-insensitiv,
+    Umlaut-/EN-tolerant). Gibt den normalisierten Namen oder '' zurück."""
+    if not name:
+        return ''
+    s = str(name).strip().lower()
+    if s in DISTRICT_TEAM:
+        return s
+    if s in DISTRICT_ALIASES:
+        return DISTRICT_ALIASES[s]
+    # Teilstring-Treffer (z.B. wenn ein Zusatz mitkommt) — deterministisch,
+    # längster Schlüssel zuerst, damit 'prenzlauer berg' vor 'berg' greift.
+    for key in sorted(DISTRICT_TEAM, key=len, reverse=True):
+        if key in s:
+            return key
+    return ''
+
+
 def _district_of(data):
-    """Bezirk aus der Entscheidung ermitteln: bevorzugt explizites Feld, sonst
-    aus der sensorId ableiten (TRF-KRZ-042 → kreuzberg)."""
-    d = data.get('district') or (data.get('location') or {}).get('district')
+    """Bezirk robust ermitteln — mehrere Rückfallebenen, damit ein dispatch nie
+    am fehlenden/abweichenden Bezirk scheitert:
+      1) explizites Feld district / location.district
+      2) sensorId-Kürzel (TRF-KRZ-042 → kreuzberg)
+      3) parameters.targetTeam ('Netzservice kreuzberg' → kreuzberg)
+    """
+    # 1) explizites Feld
+    d = _normalize_district(data.get('district') or (data.get('location') or {}).get('district'))
     if d:
         return d
+    # 2) aus der sensorId
     parts = (data.get('sensorId') or '').split('-')
     if len(parts) >= 2:
-        return CODE_DISTRICT.get(parts[1].upper(), parts[1].lower())
+        code = CODE_DISTRICT.get(parts[1].upper())
+        if code:
+            return code
+    # 3) aus targetTeam ('Netzservice <Bezirk>')
+    tt = ((data.get('parameters') or {}).get('targetTeam') or '')
+    d = _normalize_district(tt)
+    if d:
+        return d
     return '—'
 
 
